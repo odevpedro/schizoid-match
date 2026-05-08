@@ -46,10 +46,10 @@ erDiagram
 
     user_preferences {
         uuid user_id PK FK
-        text[] wellness_goals
-        text[] preferred_activities
+        array wellness_goals
+        array preferred_activities
         string preferred_intensity
-        text[] availability_periods
+        array availability_periods
         int max_distance_km
     }
 
@@ -91,8 +91,8 @@ erDiagram
         string age_range
         string activity_level
         string chronotype
-        text[] wellness_tags
-        text[] badges
+        array wellness_tags
+        array badges
     }
 
     matches {
