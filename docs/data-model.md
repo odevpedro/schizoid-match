@@ -9,8 +9,8 @@
 
 - [Visao Geral](#visao-geral)
 - [Diagrama ER](#diagrama-er)
-- [Entidades — schizoid-match](#entidades--schizoid-match)
-- [Entidades — Surak](#entidades--surak)
+- [Entidades: schizoid-match](#entidades-schizoid-match)
+- [Entidades: Surak](#entidades-surak)
 - [Enums e Dominio de Valores](#enums-e-dominio-de-valores)
 - [Indices e Performance](#indices-e-performance)
 - [Classificacao de Privacidade](#classificacao-de-privacidade)
@@ -45,11 +45,11 @@ erDiagram
     }
 
     user_preferences {
-        uuid user_id PK FK
-        array wellness_goals
-        array preferred_activities
+        uuid user_id PK
+        string wellness_goals
+        string preferred_activities
         string preferred_intensity
-        array availability_periods
+        string availability_periods
         int max_distance_km
     }
 
@@ -58,14 +58,14 @@ erDiagram
         uuid user_id FK
         string metric_type
         string permission_status
-        timestamptz granted_at
-        timestamptz revoked_at
+        string granted_at
+        string revoked_at
     }
 
     health_metrics_raw {
         uuid id PK
         uuid user_id FK
-        timestamptz timestamp
+        string timestamp
         int heart_rate_bpm
         decimal hrv_ms
         int steps
@@ -86,13 +86,13 @@ erDiagram
     }
 
     public_health_profile {
-        uuid user_id PK FK
+        uuid user_id PK
         string display_name
         string age_range
         string activity_level
         string chronotype
-        array wellness_tags
-        array badges
+        string wellness_tags
+        string badges
     }
 
     matches {
@@ -114,7 +114,7 @@ erDiagram
         uuid id PK
         uuid match_id FK
         uuid sender_id FK
-        text message
+        string message
         bool is_read
     }
 
@@ -151,7 +151,7 @@ erDiagram
 
 ---
 
-## Entidades — schizoid-match
+## Entidades: schizoid-match
 
 ---
 
@@ -412,7 +412,7 @@ erDiagram
 
 ---
 
-## Entidades — Surak
+## Entidades: Surak
 
 > Surak e stateless. Nao possui banco de dados proprio.
 > Os resultados de validacao sao retornados ao schizoid-match e persistidos la.
