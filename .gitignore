@@ -1,0 +1,150 @@
+# ==============================================================
+# Ambiente e segredos
+# ==============================================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+secrets/
+
+# ==============================================================
+# Node.js (backend NestJS + mobile React Native / Vite)
+# ==============================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
+.vite/
+
+# ==============================================================
+# React Native
+# ==============================================================
+# Android
+android/
+*.keystore
+!debug.keystore
+
+# iOS
+ios/
+*.xcworkspace
+*.xcuserdata
+Pods/
+DerivedData/
+
+# Metro bundler
+.metro-health-check*
+
+# Expo
+.expo/
+expo-env.d.ts
+
+# ==============================================================
+# Java / Maven / Gradle (Surak)
+# ==============================================================
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+.mvn/
+
+# Gradle
+.gradle/
+**/build/
+!src/**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Compiled class files
+*.class
+
+# JAR / WAR / EAR
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Spring Boot
+spring-shell.log
+HELP.md
+
+# ==============================================================
+# Docker
+# ==============================================================
+docker-compose.override.yml
+
+# ==============================================================
+# IDEs e editores
+# ==============================================================
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# IntelliJ IDEA / WebStorm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# ==============================================================
+# Sistema operacional
+# ==============================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+# ==============================================================
+# Logs e temporarios
+# ==============================================================
+logs/
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# ==============================================================
+# Testes e cobertura
+# ==============================================================
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+surefire-reports/
