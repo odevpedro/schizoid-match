@@ -2,6 +2,11 @@
 
 > Plataforma de match social baseada em dados de saude e habitos de smartwatch — conecta pessoas por objetivos de bem-estar, rotina e estilo de vida, sem expor dados medicos sensiveis.
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/odevpedro/schizoid-match/ci.yml?branch=main&style=flat-square)](https://github.com/odevpedro/schizoid-match/actions)
+[![Coverage](https://img.shields.io/codecov/c/github/odevpedro/schizoid-match?style=flat-square)](https://codecov.io/gh/odevpedro/schizoid-match)
+[![License](https://img.shields.io/github/license/odevpedro/schizoid-match?style=flat-square)](./LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/odevpedro/schizoid-match?style=flat-square)](https://github.com/odevpedro/schizoid-match/commits/main)
+
 ---
 
 ## Sobre o Projeto
