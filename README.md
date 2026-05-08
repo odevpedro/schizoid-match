@@ -1,4 +1,4 @@
-# WellMatch
+# Schizoid-Match
 
 > Plataforma de match social baseada em dados de saude e habitos de smartwatch — conecta pessoas por objetivos de bem-estar, rotina e estilo de vida, sem expor dados medicos sensiveis.
 
@@ -6,7 +6,7 @@
 
 ## Sobre o Projeto
 
-WellMatch e uma aplicacao mobile que usa dados derivados de smartwatches (passos, sono, nivel de atividade, cronotype) para calcular compatibilidade entre usuarios. O foco e privacidade: dados brutos nunca sao exibidos a outros usuarios — apenas badges, faixas e scores agregados sao usados.
+Schizoid-Match e uma aplicacao mobile que usa dados derivados de smartwatches (passos, sono, nivel de atividade, cronotype) para calcular compatibilidade entre usuarios. O foco e privacidade: dados brutos nunca sao exibidos a outros usuarios — apenas badges, faixas e scores agregados sao usados.
 
 O sistema funciona como um app de swipe (like/dislike), mas a compatibilidade e baseada em habitos, objetivos de bem-estar e disponibilidade, nao em aparencia fisica.
 
@@ -86,7 +86,7 @@ health/
 
 ```bash
 # 1. Clone o repositorio
-git clone https://github.com/odevpedro/wellmatch.git && cd wellmatch
+git clone https://github.com/odevpedro/schizoid-match.git && cd schizoid-match
 
 # 2. Configure as variaveis de ambiente
 cp .env.example .env
@@ -193,6 +193,7 @@ npm run test:e2e      # end-to-end (requer banco rodando)
 |-----------|-----------|
 | [Arquitetura](./docs/architecture.md) | Visao geral, diagramas, privacidade, compatibilidade |
 | [Fluxos de Features](./docs/system-feature-flows.md) | Fluxo interno de cada funcionalidade |
+| [Modelo de Dados](./docs/data-model.md) | Entidades, relacionamentos, enums, privacidade por campo |
 | [Backlog](./backlog.md) | Status de desenvolvimento, bugs, roadmap |
 
 ---
