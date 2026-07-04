@@ -1,9 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storage';
 import { api } from './api';
 import { ChatMessage, Conversation } from '../types/chat.types';
 import { DEMO_TOKEN, mockConversations, mockMessages } from './mock-data';
 
-const isDemo = async () => (await AsyncStorage.getItem('@wellmatch:token')) === DEMO_TOKEN;
+const isDemo = async () => (await storage.getItem('@wellmatch:token')) === DEMO_TOKEN;
 
 export const chatService = {
   async getConversations(): Promise<Conversation[]> {

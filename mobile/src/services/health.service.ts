@@ -1,14 +1,14 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storage';
 import { api } from './api';
 import { ConsentRecord, HealthMetricType, HealthProfileDaily, HealthProvider } from '../types/health.types';
 import { DEMO_TOKEN, mockConsents, mockHealthProfile } from './mock-data';
 
-const isDemo = async () => (await AsyncStorage.getItem('@wellmatch:token')) === DEMO_TOKEN;
+const isDemo = async () => (await storage.getItem('@wellmatch:token')) === DEMO_TOKEN;
 
 export const healthService = {
-  async grantConsent(metricTypes: HealthMetricType[], sourceProvider: HealthProvider): Promise<ConsentRecord[]> {
+  async grantConsent(metricTypes: HealthMetricType[], sourceProvider: HealthProvider, purpose?: string): Promise<ConsentRecord[]> {
     if (await isDemo()) return metricTypes.map((m, i) => ({ id: `c${i}`, userId: 'demo', metricType: m, permissionStatus: 'granted' as const, grantedAt: new Date().toISOString(), sourceProvider: 'simulated' }));
-    return api.post('/health/consent/grant', { metricTypes, sourceProvider }) as any;
+    return api.post('/health/consent/grant', { metricTypes, sourceProvider, purpose: purpose || 'matching_compatibility' }) as any;
   },
 
   async revokeConsent(metricTypes: HealthMetricType[]): Promise<void> {

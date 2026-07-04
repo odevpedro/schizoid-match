@@ -1,13 +1,12 @@
 import { io, Socket } from 'socket.io-client';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { storage } from './storage';
 const BASE_URL = __DEV__ ? 'http://localhost:3001' : 'https://api.wellmatch.app';
 
 class SocketService {
   private socket: Socket | null = null;
 
   async connect(): Promise<void> {
-    const token = await AsyncStorage.getItem('@wellmatch:token');
+    const token = await storage.getItem('@wellmatch:token');
     if (!token) return;
 
     this.socket = io(`${BASE_URL}/chat`, {

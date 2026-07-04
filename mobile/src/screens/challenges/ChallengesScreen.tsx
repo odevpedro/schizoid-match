@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from '../../services/storage';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { api } from '../../services/api';
@@ -17,7 +17,7 @@ export const ChallengesScreen: React.FC = () => {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
 
   useEffect(() => {
-    AsyncStorage.getItem('@wellmatch:token').then((token) => {
+    storage.getItem('@wellmatch:token').then((token) => {
       if (token === DEMO_TOKEN) { setChallenges(mockChallenges); return; }
       return api.get('/challenges').then((data: any) => setChallenges(Array.isArray(data) ? data : []));
     }).catch(() => {});

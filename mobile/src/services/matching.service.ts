@@ -1,12 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storage';
 import { api } from './api';
-import { PublicHealthProfile, Match, SwipeDirection } from '../types/match.types';
+import { MatchCandidate, Match, SwipeDirection } from '../types/match.types';
 import { DEMO_TOKEN, mockCandidates } from './mock-data';
 
-const isDemo = async () => (await AsyncStorage.getItem('@wellmatch:token')) === DEMO_TOKEN;
+const isDemo = async () => (await storage.getItem('@wellmatch:token')) === DEMO_TOKEN;
 
 export const matchingService = {
-  async getCandidates(): Promise<PublicHealthProfile[]> {
+  async getCandidates(): Promise<MatchCandidate[]> {
     if (await isDemo()) return [...mockCandidates];
     return api.get('/matching/candidates') as any;
   },

@@ -43,7 +43,8 @@ export const PrivacyScreen: React.FC = () => {
     setConsents((prev) => ({ ...prev, [metric]: value }));
     try {
       if (value) {
-        await healthService.grantConsent([metric], 'simulated');
+        const purpose = SENSITIVE_METRICS.includes(metric) ? 'wellness_badges' : 'matching_compatibility';
+        await healthService.grantConsent([metric], 'simulated', purpose);
       } else {
         await healthService.revokeConsent([metric]);
       }
