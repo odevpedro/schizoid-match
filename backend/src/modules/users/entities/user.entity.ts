@@ -33,6 +33,9 @@ export class User {
   @Column({ name: 'avatar_url', type: 'varchar', nullable: true })
   avatarUrl: string | null;
 
+  @Column({ type: 'varchar', length: 20, default: 'user' })
+  role: 'user' | 'moderator' | 'admin';
+
   @Column({ name: 'is_deleted', default: false })
   isDeleted: boolean;
 
