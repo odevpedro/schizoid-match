@@ -48,6 +48,12 @@ export class Challenge {
   @Column({ default: 'active' })
   status: string;
 
+  @Column({ name: 'progress_value', type: 'decimal', nullable: true })
+  progressValue: number;
+
+  @Column({ name: 'completed_at', type: 'timestamp', nullable: true })
+  completedAt: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

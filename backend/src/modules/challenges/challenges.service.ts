@@ -24,6 +24,16 @@ export class ChallengesService {
     private readonly matchRepo: Repository<Match>,
   ) {}
 
+  async getHistory(userId: string): Promise<Challenge[]> {
+    return this.challengeRepo
+      .createQueryBuilder('c')
+      .innerJoin(Match, 'm', 'c.match_id = m.id')
+      .where('(m.user_id_1 = :userId OR m.user_id_2 = :userId)', { userId })
+      .andWhere("c.status != 'active'")
+      .orderBy('c.created_at', 'DESC')
+      .getMany();
+  }
+
   async create(userId: string, dto: CreateChallengeDto): Promise<Challenge> {
     const match = await this.matchRepo.findOne({ where: { id: dto.matchId } });
     if (!match || (match.userId1 !== userId && match.userId2 !== userId)) {
