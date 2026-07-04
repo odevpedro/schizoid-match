@@ -7,6 +7,7 @@ import { SwipeHistory } from './entities/swipe-history.entity';
 import { PublicWellnessProfile } from './entities/public-wellness-profile.entity';
 import { CompatibilityCalculator } from './compatibility/compatibility.calculator';
 import { UserPreferences } from '../users/entities/user-preferences.entity';
+import { User } from '../users/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 
 describe('MatchingService', () => {
@@ -41,6 +42,7 @@ describe('MatchingService', () => {
   const mockMatchRepo = {};
   const mockProfileRepo = {};
   const mockPrefsRepo = {};
+  const mockUserRepo = {};
 
   const mockAuditService = {
     record: jest.fn().mockResolvedValue(undefined),
@@ -55,6 +57,7 @@ describe('MatchingService', () => {
         { provide: getRepositoryToken(SwipeHistory), useValue: mockSwipeRepo },
         { provide: getRepositoryToken(PublicWellnessProfile), useValue: mockProfileRepo },
         { provide: getRepositoryToken(UserPreferences), useValue: mockPrefsRepo },
+        { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: CompatibilityCalculator, useValue: mockCalculator },
         { provide: AuditService, useValue: mockAuditService },
       ],

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MatchingService } from './matching.service';
 import { SwipeDto } from './dto/swipe.dto';
@@ -33,5 +33,12 @@ export class MatchingController {
   @ApiOperation({ summary: 'Get swipe history for current user' })
   async getSwipeHistory(@Request() req) {
     return this.matchingService.getSwipeHistory(req.user.id);
+  }
+
+  @Delete('unmatch/:matchId')
+  @ApiOperation({ summary: 'Unmatch a previously matched user' })
+  async unmatch(@Request() req, @Param('matchId') matchId: string) {
+    await this.matchingService.unmatch(req.user.id, matchId);
+    return { message: 'Match unmatched successfully' };
   }
 }

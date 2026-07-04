@@ -11,6 +11,9 @@ const OPTIONAL_VARS_WITH_DEFAULTS: Record<string, string> = {
   BCRYPT_ROUNDS: '12',
   MAX_SWIPES_PER_DAY: '50',
   DAILY_MESSAGE_LIMIT: '200',
+  PORT: '3001',
+  NODE_ENV: 'development',
+  CORS_ORIGIN: '*',
 };
 
 export function validateEnvironment(): void {
@@ -32,7 +35,7 @@ export function validateEnvironment(): void {
   for (const [varName, defaultValue] of Object.entries(OPTIONAL_VARS_WITH_DEFAULTS)) {
     if (!process.env[varName]) {
       process.env[varName] = defaultValue;
-      logger.log(`Using default for ${varName}=${defaultValue}`);
+      logger.warn(`Missing ${varName}, using default: ${defaultValue}`);
     }
   }
 

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Not, In, MoreThanOrEqual } from 'typeorm';
 import { Match } from './entities/match.entity';
@@ -8,6 +8,7 @@ import { CompatibilityCalculator } from './compatibility/compatibility.calculato
 import { CompatibilityResult } from './compatibility/compatibility.calculator';
 import { SwipeDto } from './dto/swipe.dto';
 import { UserPreferences } from '../users/entities/user-preferences.entity';
+import { User } from '../users/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 
 const MAX_SWIPES_PER_DAY = parseInt(process.env.MAX_SWIPES_PER_DAY || '50');
@@ -24,6 +25,8 @@ export class MatchingService {
     private readonly profileRepo: Repository<PublicWellnessProfile>,
     @InjectRepository(UserPreferences)
     private readonly prefsRepo: Repository<UserPreferences>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly calculator: CompatibilityCalculator,
     private readonly auditService: AuditService,
   ) {}
@@ -48,17 +51,47 @@ export class MatchingService {
 
     const myPrefs = await this.prefsRepo.findOne({ where: { userId } });
     const myProfile = await this.profileRepo.findOne({ where: { userId } });
+    const myUser = await this.userRepo.findOne({ where: { id: userId } });
 
     if (!myProfile || !myPrefs) return [];
 
-    return candidates.map((candidate) => {
-      const theirPrefs = { wellnessGoals: candidate.wellnessGoals, preferredActivities: candidate.preferredActivities, preferredIntensity: candidate.intensityPreference, availabilityPeriods: candidate.availabilityPeriods, maxDistanceKm: 50, chronotypePreference: candidate.chronotypeBand } as any;
-      const compatibility = this.calculator.calculate(myProfile, myPrefs, candidate, theirPrefs);
-      const displayName = (candidate as any).user?.name || 'Usuário';
-      const ageRange = (candidate as any).user?.birthdate ? calculateAgeRange((candidate as any).user.birthdate) : undefined;
-      const approximateRegion = (candidate as any).user?.locationRegion || undefined;
-      return { ...candidate, displayName, ageRange, approximateRegion, compatibility };
-    }).sort((a, b) => b.compatibility.total - a.compatibility.total);
+    const maxDistanceKm = myPrefs.maxDistanceKm || 50;
+
+    const matchedUsers = await this.matchRepo.find({
+      where: [
+        { userId1: userId, status: 'active' },
+        { userId2: userId, status: 'active' },
+      ],
+    });
+    const matchedUserIds = new Set<string>(
+      matchedUsers.map((m) => (m.userId1 === userId ? m.userId2 : m.userId1)),
+    );
+
+    return candidates
+      .map((candidate) => {
+        const theirPrefs = { wellnessGoals: candidate.wellnessGoals, preferredActivities: candidate.preferredActivities, preferredIntensity: candidate.intensityPreference, availabilityPeriods: candidate.availabilityPeriods, maxDistanceKm: 50, chronotypePreference: candidate.chronotypeBand } as any;
+        const compatibility = this.calculator.calculate(myProfile, myPrefs, candidate, theirPrefs);
+        const displayName = (candidate as any).user?.name || 'Usuário';
+        const ageRange = (candidate as any).user?.birthdate ? calculateAgeRange((candidate as any).user.birthdate) : undefined;
+        const approximateRegion = (candidate as any).user?.locationRegion || undefined;
+
+        let distanceKm: number | undefined;
+        const candidateLat = (candidate as any).user?.latitude;
+        const candidateLng = (candidate as any).user?.longitude;
+        if (myUser?.latitude != null && myUser?.longitude != null && candidateLat != null && candidateLng != null) {
+          distanceKm = calculateDistance(myUser.latitude, myUser.longitude, candidateLat, candidateLng);
+        }
+
+        const result: any = { ...candidate, displayName, ageRange, approximateRegion, compatibility, distanceKm };
+        if (!matchedUserIds.has(candidate.userId)) {
+          const { user, ...rest } = result;
+          const { avatarUrl, ...safeUser } = user || {};
+          return { ...rest, user: safeUser };
+        }
+        return result;
+      })
+      .filter((c) => c.distanceKm === undefined || c.distanceKm <= maxDistanceKm)
+      .sort((a, b) => b.compatibility.total - a.compatibility.total);
   }
 
   async swipe(userId: string, dto: SwipeDto): Promise<{ matched: boolean; matchId?: string; compatibility?: CompatibilityResult }> {
@@ -153,6 +186,25 @@ export class MatchingService {
     }
   }
 
+  async unmatch(userId: string, matchId: string): Promise<void> {
+    const match = await this.matchRepo.findOne({ where: { id: matchId } });
+    if (!match) {
+      throw new NotFoundException('Match not found');
+    }
+    if (match.userId1 !== userId && match.userId2 !== userId) {
+      throw new BadRequestException('User is not a participant of this match');
+    }
+    match.status = 'unmatched';
+    await this.matchRepo.save(match);
+    await this.auditService.record({
+      userId,
+      eventType: 'match_unmatched',
+      resourceType: 'match',
+      resourceId: matchId,
+      metadata: { otherUserId: match.userId1 === userId ? match.userId2 : match.userId1 },
+    });
+  }
+
   async getMatches(userId: string): Promise<Match[]> {
     return this.matchRepo.find({
       where: [
@@ -171,6 +223,22 @@ export class MatchingService {
       take: 100,
     });
   }
+}
+
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180;
 }
 
 function calculateAgeRange(birthdate: Date): string {

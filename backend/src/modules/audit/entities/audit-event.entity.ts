@@ -16,6 +16,7 @@ export type AuditEventType =
   | 'user_reported'
   | 'moderation_action_taken'
   | 'match_created'
+  | 'match_unmatched'
   | 'message_sent'
   | 'message_read'
   | 'retention_cleanup_executed';

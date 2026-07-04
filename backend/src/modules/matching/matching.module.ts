@@ -8,9 +8,10 @@ import { PublicHealthProfile } from './entities/public-health-profile.entity';
 import { PublicWellnessProfile } from './entities/public-wellness-profile.entity';
 import { CompatibilityCalculator } from './compatibility/compatibility.calculator';
 import { UserPreferences } from '../users/entities/user-preferences.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Match, SwipeHistory, PublicHealthProfile, PublicWellnessProfile, UserPreferences])],
+  imports: [TypeOrmModule.forFeature([Match, SwipeHistory, PublicHealthProfile, PublicWellnessProfile, UserPreferences, User])],
   providers: [MatchingService, CompatibilityCalculator],
   controllers: [MatchingController],
   exports: [MatchingService],
