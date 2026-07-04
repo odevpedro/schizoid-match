@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT,
   location_region VARCHAR(255),
   avatar_url VARCHAR(500),
+  role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
   is_deleted BOOLEAN DEFAULT FALSE,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -41,30 +42,33 @@ CREATE TABLE IF NOT EXISTS consent_records (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   metric_type VARCHAR(100) NOT NULL,
+  purpose VARCHAR(50) DEFAULT 'matching_compatibility',
+  consent_version VARCHAR(10) DEFAULT 'v1',
   permission_status VARCHAR(20) NOT NULL CHECK (permission_status IN ('granted', 'revoked', 'pending')),
   granted_at TIMESTAMPTZ,
   revoked_at TIMESTAMPTZ,
   source_provider VARCHAR(100),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- health_metrics_raw: INTERNAL ONLY - never exposed via public API
--- All fields here are sensitive health data subject to strict access controls
 CREATE TABLE IF NOT EXISTS health_metrics_raw (
   id UUID DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   timestamp TIMESTAMPTZ NOT NULL,
   source_provider VARCHAR(100),
-  heart_rate_bpm INTEGER,                         -- sensitive: never expose externally
-  hrv_ms DECIMAL(6,2),                            -- sensitive: never expose externally
+  heart_rate_bpm INTEGER,
+  hrv_ms DECIMAL(6,2),
   steps INTEGER,
   calories INTEGER,
-  vo2max DECIMAL(5,2),                            -- sensitive: never expose externally
+  vo2max DECIMAL(5,2),
   sleep_minutes INTEGER,
-  sleep_score DECIMAL(5,2),                       -- sensitive: never expose externally
-  stress_level DECIMAL(5,2),                      -- sensitive: never expose externally
-  blood_oxygen DECIMAL(5,2),                      -- sensitive: never expose externally
-  skin_temp DECIMAL(5,2),                         -- sensitive: never expose externally
+  sleep_score DECIMAL(5,2),
+  stress_level DECIMAL(5,2),
+  blood_oxygen DECIMAL(5,2),
+  skin_temp DECIMAL(5,2),
   PRIMARY KEY (id, timestamp)
 );
 SELECT create_hypertable('health_metrics_raw', 'timestamp', if_not_exists => TRUE);
@@ -86,7 +90,28 @@ CREATE TABLE IF NOT EXISTS health_profile_daily (
   UNIQUE(user_id, date)
 );
 
--- public_health_profile: safe data for match display
+-- public_wellness_profile: safe semantic bands for matching
+CREATE TABLE IF NOT EXISTS public_wellness_profile (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  activity_level VARCHAR(20),
+  activity_consistency_band VARCHAR(10),
+  sleep_routine_band VARCHAR(15),
+  chronotype_band VARCHAR(10),
+  intensity_preference VARCHAR(10),
+  main_intention VARCHAR(50),
+  preferred_activities TEXT[] DEFAULT '{}',
+  wellness_goals TEXT[] DEFAULT '{}',
+  availability_periods TEXT[] DEFAULT '{}',
+  public_badges TEXT[] DEFAULT '{}',
+  score_confidence VARCHAR(10) DEFAULT 'low',
+  source VARCHAR(20) DEFAULT 'manual',
+  is_visible BOOLEAN DEFAULT true,
+  onboarding_completed BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- public_health_profile: legacy, kept for compatibility
 CREATE TABLE IF NOT EXISTS public_health_profile (
   user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   display_name VARCHAR(255),
@@ -129,6 +154,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   message TEXT NOT NULL,
   is_read BOOLEAN DEFAULT FALSE,
+  read_at TIMESTAMPTZ,
   timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -159,6 +185,39 @@ CREATE TABLE IF NOT EXISTS challenge_progress (
   UNIQUE(challenge_id, user_id)
 );
 
+-- blocks
+CREATE TABLE IF NOT EXISTS blocks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  blocker_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(blocker_id, blocked_id)
+);
+
+-- reports
+CREATE TABLE IF NOT EXISTS reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reported_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason VARCHAR(50) NOT NULL,
+  description TEXT,
+  match_id UUID REFERENCES matches(id) ON DELETE SET NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- moderation_actions
+CREATE TABLE IF NOT EXISTS moderation_actions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  target_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  action_type VARCHAR(30) NOT NULL,
+  reason TEXT,
+  report_id UUID REFERENCES reports(id) ON DELETE SET NULL,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_health_metrics_user_time ON health_metrics_raw(user_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_health_profile_user_date ON health_profile_daily(user_id, date DESC);
@@ -169,6 +228,28 @@ CREATE INDEX IF NOT EXISTS idx_matches_user2 ON matches(user_id_2);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_match ON chat_messages(match_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_consent_records_user ON consent_records(user_id, metric_type);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_public_wellness_profile_visible ON public_wellness_profile(is_visible) WHERE is_visible = true;
+CREATE INDEX IF NOT EXISTS idx_public_wellness_profile_onboarding ON public_wellness_profile(onboarding_completed) WHERE onboarding_completed = true;
+CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_id);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_target ON moderation_actions(target_user_id);
+
+-- audit_events
+CREATE TABLE IF NOT EXISTS audit_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID,
+  event_type VARCHAR(50) NOT NULL,
+  resource_type VARCHAR(50),
+  resource_id UUID,
+  metadata JSONB,
+  ip_address VARCHAR(45),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_events_user_id ON audit_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_event_type ON audit_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
 
 -- Row-level security policies (enable after adding roles)
 ALTER TABLE health_metrics_raw ENABLE ROW LEVEL SECURITY;
