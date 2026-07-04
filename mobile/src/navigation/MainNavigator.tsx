@@ -10,6 +10,8 @@ import { MessagesScreen } from '../screens/chat/MessagesScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { PrivacyScreen } from '../screens/privacy/PrivacyScreen';
 import { WatchConnectionScreen } from '../screens/onboarding/WatchConnectionScreen';
+import { ReportUserScreen } from '../screens/moderation/ReportUserScreen';
+import { BlockedUsersScreen } from '../screens/moderation/BlockedUsersScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -33,6 +35,14 @@ const ProfileStack = () => (
     <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: 'Privacidade' }} />
     <Stack.Screen name="WatchConnection" component={WatchConnectionScreen} options={{ title: 'Smartwatch' }} />
+    <Stack.Screen name="ReportUser" component={ReportUserScreen} options={{ title: 'Denunciar' }} />
+    <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} options={{ title: 'Bloqueados' }} />
+  </Stack.Navigator>
+);
+
+const MatchStack = () => (
+  <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.text }}>
+    <Stack.Screen name="MatchMain" component={MatchScreen} options={{ headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -56,7 +66,7 @@ export const MainNavigator: React.FC = () => (
     })}
   >
     <Tab.Screen name="Profile" component={ProfileStack} options={{ tabBarLabel: 'Perfil' }} />
-    <Tab.Screen name="Match" component={MatchScreen} options={{ tabBarLabel: 'Match' }} />
+    <Tab.Screen name="Match" component={MatchStack} options={{ tabBarLabel: 'Match' }} />
     <Tab.Screen name="Challenges" component={ChallengesScreen} options={{ tabBarLabel: 'Desafios' }} />
     <Tab.Screen name="Messages" component={MessagesStack} options={{ tabBarLabel: 'Mensagens' }} />
   </Tab.Navigator>

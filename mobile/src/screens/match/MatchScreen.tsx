@@ -7,9 +7,11 @@ import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { WellnessCard } from '../../components/cards/WellnessCard';
 import { matchingService } from '../../services/matching.service';
+import { moderationService } from '../../services/moderation.service';
+import { BlockUserButton } from '../../components/moderation/BlockUserButton';
 import { useMatchStore } from '../../store/match.slice';
 
-export const MatchScreen: React.FC = () => {
+export const MatchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { width: screenWidth } = useWindowDimensions();
   const { candidates, setCandidates, removeTopCandidate } = useMatchStore();
   const [loading, setLoading] = useState(false);
@@ -49,19 +51,21 @@ export const MatchScreen: React.FC = () => {
     }
   };
 
+  const currentUserId = candidates[0]?.userId;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Descobrir</Text>
-        <Text style={styles.subtitle}>Baseado nos seus habitos de bem-estar</Text>
+        <Text style={styles.subtitle}>Baseado nos seus hábitos de bem-estar</Text>
       </View>
 
       <View style={styles.cardArea}>
         {candidates.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🌱</Text>
-            <Text style={styles.emptyTitle}>Por ora e so isso</Text>
-            <Text style={styles.emptyText}>Novos perfis aparecerao em breve. Continue sincronizando seus dados de saude.</Text>
+            <Text style={styles.emptyTitle}>Por ora é só isso</Text>
+            <Text style={styles.emptyText}>Novos perfis aparecerão em breve. Continue sincronizando seus dados de saúde.</Text>
             <TouchableOpacity style={styles.refreshBtn} onPress={loadCandidates}>
               <Text style={styles.refreshText}>Atualizar</Text>
             </TouchableOpacity>
@@ -80,22 +84,41 @@ export const MatchScreen: React.FC = () => {
       </View>
 
       {candidates.length > 0 && (
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.dislikeBtn} onPress={() => handleSwipe('dislike')}>
-            <Text style={styles.actionIcon}>✕</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('like')}>
-            <Text style={styles.actionIcon}>♥</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.dislikeBtn} onPress={() => handleSwipe('dislike')}>
+              <Text style={styles.actionIcon}>✕</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('like')}>
+              <Text style={styles.actionIcon}>♥</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.moderationRow}>
+            <TouchableOpacity
+              style={styles.ghostBtn}
+              onPress={() => {
+                if (currentUserId) {
+                  navigation.navigate('ReportUser', { targetUserId: currentUserId });
+                }
+              }}
+            >
+              <Text style={styles.ghostBtnText}>Denunciar</Text>
+            </TouchableOpacity>
+
+            <View style={styles.blockBtnWrapper}>
+              <BlockUserButton targetUserId={currentUserId!} />
+            </View>
+          </View>
+        </>
       )}
 
       <Modal visible={matchModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.matchModal}>
             <Text style={styles.matchEmoji}>✨</Text>
-            <Text style={styles.matchTitle}>E um Match!</Text>
-            <Text style={styles.matchText}>Voce e {matchedName} combinam em habitos de bem-estar.</Text>
+            <Text style={styles.matchTitle}>É um Match!</Text>
+            <Text style={styles.matchText}>Você e {matchedName} combinam em hábitos de bem-estar.</Text>
             <TouchableOpacity style={styles.matchBtn} onPress={() => setMatchModal(false)}>
               <Text style={styles.matchBtnText}>Continuar</Text>
             </TouchableOpacity>
@@ -134,7 +157,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 40,
-    paddingBottom: 40,
+    paddingBottom: spacing.sm,
     paddingTop: spacing.lg,
   },
   dislikeBtn: {
@@ -161,6 +184,26 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   actionIcon: { fontSize: 24, color: colors.text },
+  moderationRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingBottom: 32,
+    paddingTop: spacing.sm,
+  },
+  ghostBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.glass,
+  },
+  ghostBtnText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
+  blockBtnWrapper: {
+    transform: [{ scale: 0.85 }],
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: colors.overlay,

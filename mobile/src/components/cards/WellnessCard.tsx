@@ -4,12 +4,27 @@ import {
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
-import { PublicHealthProfile } from '../../types/match.types';
+import { MatchCandidate } from '../../types/match.types';
 import { CompatibilityBar } from '../health/CompatibilityBar';
 import { WellnessBadges } from '../health/WellnessBadges';
 
+const INTENTION_LABELS: Record<string, string> = {
+  friendship: 'Amizade',
+  walking_partner: 'Caminhada',
+  training_partner: 'Treino',
+  habit_accountability: 'Rotina',
+  social_connection: 'Social',
+  romantic_optional: 'Flexível',
+};
+
+const CONFIDENCE_LABELS: Record<string, string> = {
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
+};
+
 interface WellnessCardProps {
-  profile: PublicHealthProfile;
+  profile: MatchCandidate;
   onLike: () => void;
   onDislike: () => void;
   isTop: boolean;
@@ -50,14 +65,13 @@ export const WellnessCard: React.FC<WellnessCardProps> = ({
       },
       onPanResponderRelease: (_, gesture) => {
         const w = screenWidthRef.current;
-        const threshold = w * 0.35;
-        if (gesture.dx > threshold) {
+        if (gesture.dx > w * 0.35) {
           Animated.timing(position, {
             toValue: { x: w + 100, y: gesture.dy },
             duration: 250,
             useNativeDriver: true,
           }).start(onLike);
-        } else if (gesture.dx < -threshold) {
+        } else if (gesture.dx < -w * 0.35) {
           Animated.timing(position, {
             toValue: { x: -w - 100, y: gesture.dy },
             duration: 250,
@@ -74,7 +88,12 @@ export const WellnessCard: React.FC<WellnessCardProps> = ({
     }),
   ).current;
 
-  const chronotypeIcon = profile.chronotype === 'morning' || profile.chronotype === 'early_bird' ? '☀' : '🌙';
+  const chronotypeIcon = profile.chronotypeBand === 'morning' || profile.chronotypeBand === 'early' ? '☀' : '🌙';
+
+  const metaParts: string[] = [];
+  if (profile.ageRange) metaParts.push(profile.ageRange);
+  if (profile.approximateRegion) metaParts.push(profile.approximateRegion);
+  if (profile.mainIntention && INTENTION_LABELS[profile.mainIntention]) metaParts.push(INTENTION_LABELS[profile.mainIntention]);
 
   return (
     <Animated.View
@@ -104,27 +123,42 @@ export const WellnessCard: React.FC<WellnessCardProps> = ({
 
       <View style={styles.header}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{profile.displayName?.charAt(0) ?? '?'}</Text>
+          <Text style={styles.avatarText}>{profile.displayName?.[0]?.toUpperCase() || '?'}</Text>
         </View>
         <View style={styles.headerInfo}>
-          <Text style={styles.name}>{profile.displayName}</Text>
-          <Text style={styles.meta}>{profile.ageRange} · {profile.chronotype ? `${chronotypeIcon} ${profile.chronotype}` : ''}</Text>
+          <Text style={styles.name}>{profile.displayName || 'Usuário'}</Text>
+          <Text style={styles.meta}>{metaParts.join(' · ')}</Text>
         </View>
+      </View>
+
+      <View style={styles.badgeRow}>
+        <View style={styles.confidenceBadge}>
+          <Text style={styles.confidenceText}>
+            Confiança: {CONFIDENCE_LABELS[profile.compatibility.confidence] || profile.compatibility.confidence}
+          </Text>
+        </View>
+        {profile.source && (
+          <View style={styles.sourceBadge}>
+            <Text style={styles.sourceText}>{profile.source === 'manual' ? 'Manual' : 'Misto'}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.divider} />
 
       <View style={styles.section}>
-        <CompatibilityBar score={profile.compatibilityScore ?? 0} />
+        <CompatibilityBar score={profile.compatibility.total} />
       </View>
 
       <View style={styles.section}>
-        <WellnessBadges badges={profile.badges ?? []} goals={profile.goals ?? []} maxDisplay={4} />
+        <WellnessBadges badges={profile.publicBadges} goals={profile.wellnessGoals} maxDisplay={4} />
       </View>
 
-      {profile.compatibilitySummary && (
+      {profile.compatibility.reasons.length > 0 && (
         <View style={styles.summary}>
-          <Text style={styles.summaryText}>{profile.compatibilitySummary}</Text>
+          {profile.compatibility.reasons.map((r, i) => (
+            <Text key={i} style={styles.summaryText}>• {r}</Text>
+          ))}
         </View>
       )}
     </Animated.View>
@@ -173,6 +207,21 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1 },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
   meta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  badgeRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  confidenceBadge: {
+    backgroundColor: colors.primaryDim,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  confidenceText: { fontSize: 11, color: colors.primary, fontWeight: '600' },
+  sourceBadge: {
+    backgroundColor: colors.glass,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sourceText: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
   section: { marginBottom: spacing.md },
   summary: {
