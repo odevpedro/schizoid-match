@@ -154,6 +154,13 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 - `[x]` init.sql atualizado com `role` e `audit_events`
 - `[x]` Testes de integracao com banco real (`test/integration/wellmatch.integration.spec.ts`)
 
+**Providers de smartwatch:**
+- `[x]` HealthKit provider (iOS) — healthkit.provider.ts
+- `[x]` Health Connect provider (Android) — health-connect.provider.ts
+- `[x]` Garmin Connect API — garmin.provider.ts (via env vars)
+- `[x]` Fitbit Web API — fitbit.provider.ts (via env vars)
+- `[x]` Factory registra todos os 5 provedores
+
 **Documentacao:**
 - `[x]` README.md, backlog.md, data-model.md, security.md, system-feature-flows.md atualizados
 
@@ -163,16 +170,16 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 
 ### Smartwatch Integration — P1
 
-- `[ ]` HealthKit provider (iOS)
-- `[ ]` Health Connect provider (Android)
-- `[ ]` Garmin Connect API
-- `[ ]` Fitbit API
+- `[x]` HealthKit provider (iOS)
+- `[x]` Health Connect provider (Android)
+- `[x]` Garmin Connect API
+- `[x]` Fitbit API
 
 ### Perfil e Match — P1
 
 - `[ ]` Upload de foto de perfil (revelada so apos match)
-- `[ ]` Filtros de match (distancia real via geolocation)
-- `[ ]` Desfazer match (unmatch)
+- `[x]` Filtros de match (distancia real via geolocation)
+- `[x]` Desfazer match (unmatch)
 
 ### Desafios — P2
 
@@ -202,7 +209,7 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 | B001 | public_health_profile nao populado (substituido por PublicWellnessProfile) | Resolvido | `[x]` |
 | B002 | Rate limit de swipes usava contagem total, nao diaria | Resolvido | `[x]` |
 | B003 | Sugestoes de chat deterministicas por charCodeAt(0) | Resolvido | `[x]` |
-| B004 | Variaveis de ambiente nao validadas | Media | Aberto |
+| B004 | Variaveis de ambiente nao validadas | Media | `[x]` |
 
 ---
 

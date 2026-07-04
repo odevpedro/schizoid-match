@@ -38,7 +38,7 @@ health/
 │   │   │   ├── auth/          # JWT, LocalStrategy, guards, RolesGuard
 │   │   │   ├── users/         # User, UserPreferences
 │   │   │   ├── health/        # Metricas, perfil derivado, consentimento
-│   │   │   │   ├── providers/ # HealthProvider interface + SimulatedProvider
+│   │   │   │   ├── providers/ # HealthProvider interface + 5 provedores (simulated, healthkit, health_connect, garmin, fitbit)
 │   │   │   │   └── processors/# RawMetrics → DerivedBands
 │   │   │   ├── matching/      # Swipe, Match, CompatibilityCalculator
 │   │   │   ├── chat/          # ChatService, ChatGateway (WebSocket)
@@ -153,6 +153,7 @@ cd infra && docker compose up -d
 | GET | `/moderation/blocks` | Listar bloqueios | Sim |
 | POST | `/moderation/report` | Denunciar usuario | Sim |
 | GET | `/moderation/reports` | Ver denuncias | Sim |
+| DELETE | `/matching/unmatch/:matchId` | Desfazer match | Sim |
 | — | `BlockedUsers` (mobile) | Tela de bloqueios com desbloqueio | — |
 | — | `ReportUser` (mobile) | Tela de denuncia com motivo e descricao | — |
 | — | `BlockUserButton` (mobile) | Botao reutilizavel com confirmacao | — |
@@ -189,8 +190,15 @@ Veja `.env.example` para a lista completa. Variaveis obrigatorias:
 | `DATABASE_URL` | URL PostgreSQL |
 | `REDIS_URL` | URL Redis |
 | `JWT_SECRET` | Segredo para assinar tokens |
-| `JWT_EXPIRES_IN` | Expiracao do token (ex: `7d`) |
-| `BCRYPT_ROUNDS` | Rounds para hash de senha (recomendado: 12) |
+| `JWT_EXPIRES_IN` | Expiracao do token (ex: `7d`) — default `7d` |
+| `BCRYPT_ROUNDS` | Rounds para hash de senha (recomendado: 12) — default `12` |
+| `PORT` | Porta do servidor — default `3001` |
+| `NODE_ENV` | Ambiente — default `development` |
+| `CORS_ORIGIN` | Origem CORS — default `*` |
+| `GARMIN_CLIENT_ID` | Client ID do Garmin Connect API (opcional) |
+| `GARMIN_CLIENT_SECRET` | Client Secret do Garmin Connect API (opcional) |
+| `FITBIT_CLIENT_ID` | Client ID do Fitbit Web API (opcional) |
+| `FITBIT_CLIENT_SECRET` | Client Secret do Fitbit Web API (opcional) |
 
 ---
 
@@ -237,7 +245,7 @@ npm run test:e2e      # end-to-end (requer banco rodando)
 [x] v0.1.0 MVP — core implementado (backend + mobile + infra + docs)
 [x] v0.2.0 — onboarding multi-step, moderacao, perfil seguro
 [x] v0.3.0 — audit, roles, healthcheck, logs estruturados, retencao, onboarding mobile completo, testes de integracao
-[ ] v0.4.0 — geolocation, filtros avancados, notificacoes
+[~] v0.4.0 — geolocation, filtros avancados, notificacoes
 [ ] v1.0.0 — producao, CI/CD, modelo ML de compatibilidade
 ```
 

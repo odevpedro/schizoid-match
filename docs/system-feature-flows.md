@@ -637,6 +637,62 @@ Cron job diario para limpeza de dados expirados, garantindo conformidade com pol
 
 ---
 
+## Feature: Smartwatch Providers (v0.3.0)
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Camada de provedores de saude expandida com 4 implementacoes reais de smartwatch/API.
+
+### Arquitetura
+
+```
+HealthProvider (interface)
+├── SimulatedProvider   — dados sinteticos (sempre disponivel)
+├── HealthKitProvider   — Apple HealthKit (iOS, retorna false se nao for iOS)
+├── HealthConnectProvider — Android Health Connect (retorna false se nao for Android)
+├── GarminProvider      — Garmin Connect API (disponivel se GARMIN_CLIENT_ID/SECRET setados)
+└── FitbitProvider      — Fitbit Web API (disponivel se FITBIT_CLIENT_ID/SECRET setados)
+```
+
+### Estrategia de Disponibilidade
+
+| Provider | isAvailable() | Condicao |
+|----------|---------------|----------|
+| Simulado | `true` | Sempre |
+| HealthKit | `false` | Apenas nativo iOS (MVP nao roda nativo) |
+| Health Connect | `false` | Apenas nativo Android (MVP nao roda nativo) |
+| Garmin | `true` se env vars configuradas | GARMIN_CLIENT_ID + GARMIN_CLIENT_SECRET |
+| Fitbit | `true` se env vars configuradas | FITBIT_CLIENT_ID + FITBIT_CLIENT_SECRET |
+
+### Fluxo de requestPermissions
+
+Garmin e Fitbit simulam OAuth retornando todas as permissoes como `true`.
+HealthKit e Health Connect retornam `false` (plataforma nao disponivel).
+
+### Factory
+
+O `HealthProviderFactory` registra todos os 5 provedores e os retorna pelo nome:
+
+- `'simulated'` → SimulatedProvider
+- `'healthkit'` → HealthKitProvider
+- `'health_connect'` → HealthConnectProvider
+- `'garmin'` → GarminProvider
+- `'fitbit'` → FitbitProvider
+
+### Arquivos
+
+- `backend/src/modules/health/providers/healthkit.provider.ts`
+- `backend/src/modules/health/providers/health-connect.provider.ts`
+- `backend/src/modules/health/providers/garmin.provider.ts`
+- `backend/src/modules/health/providers/fitbit.provider.ts`
+- `backend/src/modules/health/providers/health-provider.factory.ts` (atualizado)
+- `backend/src/modules/health/health.module.ts` (registro dos providers)
+
+---
+
 ### Metodo getWellnessSuggestions (v2)
 
 ```
@@ -697,3 +753,75 @@ Adiciona botoes de moderacao ("Denunciar" e "Bloquear") abaixo do card stack na 
 
 ### Arquivo
 `mobile/src/screens/match/MatchScreen.tsx`
+
+---
+
+## Feature: Unmatch
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Permite que um usuario desfaça um match ativo, alterando o status para 'unmatched' e registrando auditoria.
+
+### Fluxo
+
+1. `DELETE /matching/unmatch/:matchId` autenticado
+2. `MatchingController.unmatch()` chama `MatchingService.unmatch(userId, matchId)`
+3. Busca o match pelo id — 404 se nao encontrado
+4. Verifica se o usuario requisitante e participante — 400 caso contrario
+5. Altera `status` para `'unmatched'`
+6. Persiste no banco
+7. Registra evento `match_unmatched` no AuditModule
+
+### Regras
+
+| Regra | Descricao |
+|-------|-----------|
+| Participacao | So pode desfazer match quem participa dele |
+| Match inexistente | Retorna 404 |
+| Idempotencia | Chamar novamente retorna 404 (match nao esta mais ativo na busca) |
+
+---
+
+## Feature: Geolocation Distance Filtering
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Candidatos sao filtrados por distancia geografica real usando coordenadas de latitude/longitude quando disponiveis.
+
+### Modelo
+
+- Colunas `latitude` (DECIMAL(10,7)) e `longitude` (DECIMAL(10,7)) adicionadas a tabela `users`
+- Indice composto em `(latitude, longitude)` para consultas espaciais
+- Campos nullable — usuarios sem coordenadas nao sao filtrados por distancia
+
+### Fluxo em getCandidates
+
+1. Carrega o usuario atual com lat/lng
+2. Para cada candidato com lat/lng, calcula distancia usando formula de Haversine
+3. Filtra candidatos com `distanceKm > maxDistanceKm` (do `user_preferences`, default 50)
+4. Candidatos sem coordenadas sao mantidos (distancia undefined → nao filtrado)
+5. `distanceKm` e incluido no retorno de cada candidato
+
+### Haversine Formula
+
+```
+R = 6371 (km)
+dLat = toRad(lat2 - lat1)
+dLon = toRad(lon2 - lon1)
+a = sin²(dLat/2) + cos(toRad(lat1)) * cos(toRad(lat2)) * sin²(dLon/2)
+c = 2 * atan2(√a, √(1-a))
+distance = R * c
+```
+
+### Migration 007
+
+`infra/migrations/007_geolocation_and_unmatch.sql` adiciona:
+- `latitude DECIMAL(10, 7)` — nullable
+- `longitude DECIMAL(10, 7)` — nullable
+- Indice `idx_users_latitude_longitude` em `(latitude, longitude)`

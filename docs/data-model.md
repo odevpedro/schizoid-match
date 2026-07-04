@@ -189,6 +189,8 @@ erDiagram
 | `bio` | TEXT | Sim | NULL | Descricao livre do usuario |
 | `location_region` | VARCHAR(255) | Sim | NULL | Regiao textual aproximada |
 | `avatar_url` | VARCHAR(500) | Sim | NULL | URL da foto de perfil |
+| `latitude` | DECIMAL(10,7) | Sim | NULL | Coordenada geografica (latitude) |
+| `longitude` | DECIMAL(10,7) | Sim | NULL | Coordenada geografica (longitude) |
 | `role` | VARCHAR(20) | Nao | 'user' | user / moderator / admin |
 | `is_deleted` | BOOLEAN | Nao | FALSE | Soft delete LGPD |
 | `deleted_at` | TIMESTAMPTZ | Sim | NULL | Data da exclusao logica |
@@ -239,7 +241,7 @@ erDiagram
 | `consent_version` | VARCHAR(10) | Nao | 'v1' | Versao da politica de consentimento |
 | `granted_at` | TIMESTAMPTZ | Sim | NULL | Momento do consentimento |
 | `revoked_at` | TIMESTAMPTZ | Sim | NULL | Momento da revogacao |
-| `source_provider` | VARCHAR(100) | Sim | NULL | Origem: simulated, healthkit, health_connect... |
+| `source_provider` | VARCHAR(100) | Sim | NULL | Origem: simulated, healthkit, health_connect, garmin, fitbit... |
 | `metadata` | JSONB | Sim | NULL | Metadados adicionais |
 | `created_at` | TIMESTAMPTZ | Nao | NOW() | Data do registro |
 | `updated_at` | TIMESTAMPTZ | Nao | NOW() | Ultima atualizacao |
@@ -438,7 +440,7 @@ erDiagram
 | `availability_periods` | TEXT[] | Nao | '{}' | Periodos de disponibilidade (onboarding step 4) |
 | `public_badges` | TEXT[] | Nao | '{}' | Badges de conquistas |
 | `score_confidence` | VARCHAR(10) | Nao | 'low' | Confianca do score: low / medium / high |
-| `source` | VARCHAR(20) | Nao | 'manual' | Origem: manual / health_connect / healthkit / mixed |
+| `source` | VARCHAR(20) | Nao | 'manual' | Origem: manual / health_connect / healthkit / garmin / fitbit / mixed |
 | `is_visible` | BOOLEAN | Nao | true | Visibilidade para outros usuarios |
 | `onboarding_completed` | BOOLEAN | Nao | false | Onboarding multi-step concluido |
 | `created_at` | TIMESTAMPTZ | Nao | NOW() | Data de criacao |
@@ -550,6 +552,7 @@ erDiagram
 | `user_reported` | Usuario denunciado |
 | `moderation_action_taken` | Acao de moderacao aplicada |
 | `match_created` | Match bilateral criado |
+| `match_unmatched` | Match desfeito por um participante |
 | `message_sent` | Mensagem enviada |
 | `message_read` | Mensagem lida |
 | `retention_cleanup_executed` | Limpeza de retencao executada |
@@ -693,6 +696,7 @@ Usado em: `exam_markers.band`
 | `idx_users_email` | `users` | `email` WHERE `is_deleted = FALSE` | Login por email em usuarios ativos |
 | `idx_public_wellness_profile_visible` | `public_wellness_profile` | `is_visible` WHERE TRUE | Filtro de candidatos visiveis |
 | `idx_public_wellness_profile_onboarding` | `public_wellness_profile` | `onboarding_completed` WHERE TRUE | Filtro de usuarios prontos para match |
+| `idx_users_latitude_longitude` | `users` | `latitude, longitude` | Filtro geografico de candidatos |
 | `idx_blocks_blocker` | `blocks` | `blocker_id` | Listagem de bloqueios |
 | `idx_reports_reported` | `reports` | `reported_id` | Consulta de denuncias por alvo |
 | `idx_reports_status` | `reports` | `status` | Filtro de denuncias pendentes |
