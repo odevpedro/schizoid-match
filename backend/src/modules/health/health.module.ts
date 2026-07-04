@@ -7,12 +7,25 @@ import { HealthProfileDaily } from './entities/health-profile-daily.entity';
 import { ConsentRecord } from './entities/consent-record.entity';
 import { PublicWellnessProfile } from '../matching/entities/public-wellness-profile.entity';
 import { SimulatedProvider } from './providers/simulated.provider';
+import { HealthKitProvider } from './providers/healthkit.provider';
+import { HealthConnectProvider } from './providers/health-connect.provider';
+import { GarminProvider } from './providers/garmin.provider';
+import { FitbitProvider } from './providers/fitbit.provider';
 import { HealthProviderFactory } from './providers/health-provider.factory';
 import { HealthProfileProcessor } from './processors/health-profile.processor';
 
 @Module({
   imports: [TypeOrmModule.forFeature([HealthMetricsRaw, HealthProfileDaily, ConsentRecord, PublicWellnessProfile])],
-  providers: [HealthService, SimulatedProvider, HealthProviderFactory, HealthProfileProcessor],
+  providers: [
+    HealthService,
+    SimulatedProvider,
+    HealthKitProvider,
+    HealthConnectProvider,
+    GarminProvider,
+    FitbitProvider,
+    HealthProviderFactory,
+    HealthProfileProcessor,
+  ],
   controllers: [HealthController],
   exports: [HealthService],
 })

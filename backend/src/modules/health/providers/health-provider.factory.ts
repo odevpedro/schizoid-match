@@ -1,31 +1,39 @@
 import { Injectable } from '@nestjs/common';
 import { HealthProvider } from './health-provider.interface';
 import { SimulatedProvider } from './simulated.provider';
+import { HealthKitProvider } from './healthkit.provider';
+import { HealthConnectProvider } from './health-connect.provider';
+import { GarminProvider } from './garmin.provider';
+import { FitbitProvider } from './fitbit.provider';
 
 @Injectable()
 export class HealthProviderFactory {
-  constructor(private readonly simulatedProvider: SimulatedProvider) {}
+  constructor(
+    private readonly simulatedProvider: SimulatedProvider,
+    private readonly healthKitProvider: HealthKitProvider,
+    private readonly healthConnectProvider: HealthConnectProvider,
+    private readonly garminProvider: GarminProvider,
+    private readonly fitbitProvider: FitbitProvider,
+  ) {}
 
   getProvider(providerName: string): HealthProvider {
     switch (providerName) {
       case 'simulated':
         return this.simulatedProvider;
       case 'healthkit':
-        // Placeholder for HealthKit integration (iOS only)
-        throw new Error('HealthKit integration not yet available in MVP');
+        return this.healthKitProvider;
       case 'health_connect':
-        // Placeholder for Health Connect integration (Android only)
-        throw new Error('Health Connect integration not yet available in MVP');
+        return this.healthConnectProvider;
       case 'garmin':
-        throw new Error('Garmin integration not yet available in MVP');
+        return this.garminProvider;
       case 'fitbit':
-        throw new Error('Fitbit integration not yet available in MVP');
+        return this.fitbitProvider;
       default:
         return this.simulatedProvider;
     }
   }
 
   getAvailableProviders(): string[] {
-    return ['simulated'];
+    return ['simulated', 'healthkit', 'health_connect', 'garmin', 'fitbit'];
   }
 }
