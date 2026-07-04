@@ -14,6 +14,9 @@
 - [Feature: Sistema de Swipe e Match](#feature-sistema-de-swipe-e-match)
 - [Feature: Chat em Tempo Real](#feature-chat-em-tempo-real)
 - [Feature: Privacidade e LGPD](#feature-privacidade-e-lgpd)
+- [Feature: Onboarding Multi-Step](#feature-onboarding-multi-step)
+- [Feature: Moderacao e Bloqueio](#feature-moderacao-e-bloqueio)
+- [Feature: Chat Seguro](#feature-chat-seguro)
 
 ---
 
@@ -184,6 +187,25 @@ score = goals(0.25) + activities(0.20) + chronotype(0.15)
 
 Cada dimensao normalizada 0-100. Score final arredondado para inteiro.
 
+### Dados do Card de Candidato (v0.3.0)
+
+Cada candidato retornado em `GET /matching/candidates` agora inclui:
+
+| Campo | Origem | Descricao |
+|-------|--------|-----------|
+| `displayName` | users.name | Nome de exibicao do usuario |
+| `ageRange` | Calculado de users.birthdate | Faixa etaria (ex: "25-29", "30-34") |
+| `approximateRegion` | users.locationRegion | Regiao textual aproximada |
+| `score_confidence` | public_wellness_profile | low / medium / high |
+| `source` | public_wellness_profile | manual / health_connect / healthkit / mixed |
+| `badges` | public_wellness_profile | Badges de consistencia e conquistas |
+
+O `WellnessCard` no mobile exibe: `displayName`, `ageRange`, confidence badge (conforme `score_confidence`) e source badge (conforme `source`).
+
+### Rate Limit de Swipe (v0.3.0)
+
+Corrigido B002: o rate limit agora conta `createdAt >= todayStart` com `MoreThanOrEqual` (anteriormente contava total historico, bloqueando usuarios apos 50 swipes acumulados).
+
 ### Diagrama de Sequencia
 
 ```mermaid
@@ -265,5 +287,413 @@ Dados de saude brutos e derivados sao fisicamente removidos.
 Todos os eventos de consentimento sao registrados em `consent_records` com:
 - `metric_type` — qual metrica
 - `permission_status` — granted / revoked
+- `purpose` — finalidade do consentimento
+- `consent_version` — versao da politica
 - `granted_at` / `revoked_at` — timestamps precisos
 - `source_provider` — de onde veio o dado
+
+### Efeito da Revogacao (v0.2.0)
+
+Quando um consentimento e revogado:
+
+1. Status do consentimento → 'revoked', revoked_at preenchido
+2. Campos associados em `public_wellness_profile` → null (via metricToField mapping)
+3. `score_confidence` → 'low'
+4. Proximo calculo de compatibilidade usa menos dimensoes, com confianca reduzida
+
+---
+
+## Feature: Onboarding Multi-Step
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Onboarding obrigatorio de 7 passos apos registro. Usuario so acessa matching apos `onboarding_completed = true`.
+
+### Fluxo
+
+```
+POST /auth/register
+    → users + user_preferences criados
+    → redirecionar para onboarding (step 0)
+
+Step 1: POST /users/onboarding/step1  → mainIntention
+Step 2: POST /users/onboarding/step2  → wellnessGoals
+Step 3: POST /users/onboarding/step3  → preferredActivities
+Step 4: POST /users/onboarding/step4  → availabilityPeriods
+Step 5: POST /users/onboarding/step5  → intensityPreference
+Step 6: POST /users/onboarding/step6  → privacyVisibilitySettings
+Step 7: POST /users/onboarding/step7  → source + manual bands → gera PublicWellnessProfile
+
+GET /users/onboarding/status → { completed: boolean, step: number, profile }
+```
+
+### Validacoes
+- Steps 1-6 sao upserts idempotentes
+- Step 7 exige steps 1-6 completos (400 caso contrario)
+- Step 7 gera PublicWellnessProfile com `onboardingCompleted: true`
+
+### Dados gerados no Step 7
+- activityLevel, sleepRoutineBand, chronotypeBand mapeados de respostas manuais
+- score_confidence = 'medium' para manual, 'low' para simulado
+- intensityPreference, preferredActivities, wellnessGoals, availabilityPeriods copiados de user_preferences
+
+---
+
+## Feature: Moderacao e Bloqueio
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Sistema completo de bloqueio, denuncia e acoes de moderacao com persistencia e ciclo de vida.
+
+### Fluxo de Bloqueio
+
+1. `POST /moderation/block` com `{ targetUserId, reason? }`
+2. Verifica se nao esta bloqueando a si mesmo
+3. Verifica se bloqueio ja existe (idempotente)
+4. Atualiza matches ativos entre os dois → status 'blocked'
+5. Persiste Block
+
+### Fluxo de Denuncia
+
+1. `POST /moderation/report` com `{ targetUserId, reason, description?, matchId? }`
+2. Verifica se nao esta denunciando a si mesmo
+3. Cria Report com status 'pending'
+4. Moderador analisa e pode: alterar status, aplicar moderation action
+
+### Regras
+
+| Regra | Descricao |
+|-------|-----------|
+| Auto-block | Rejeitado (400) |
+| Auto-report | Rejeitado (400) |
+| Block duplicado | Retorna block existente (idempotente) |
+| Match ativo | Bloqueio → match status = 'blocked' |
+| Visibilidade | Usuario ve apenas proprias denuncias (admin ve todas) |
+
+---
+
+## Feature: Chat Seguro
+
+> **Versao:** 2.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida (atualizada)
+
+### Melhorias de Seguranca (v0.2.0)
+
+- `join:match` agora valida participacao no match (antes permitia join em qualquer matchId)
+- `message:send` valida acesso server-side antes de persistir
+- Limite diario de mensagens: 200 (configuravel via DAILY_MESSAGE_LIMIT)
+- `read_at` timestamp adicionado ao marcar como lida
+- Sugestoes de conversa usam hash melhorado (corrigido B003)
+
+### Eventos WebSocket (atualizado)
+
+| Evento | Direcao | Payload | Seguranca |
+|--------|---------|---------|-----------|
+| `join:match` | Client → Server | `{ matchId }` | Validacao de participacao |
+| `message:send` | Client → Server | `{ matchId, message }` | Validacao de acesso + rate limit |
+| `message:read` | Client → Server | `{ matchId, messageId }` | Marcar como lida com timestamp |
+| `message:received` | Server → Client | `ChatMessage` | — |
+| `match:new` | Server → Client | `{ matchId }` | — |
+
+### Telas Mobile de Moderacao (v0.2.0)
+
+#### BlockedUsersScreen
+
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+Lista todos os usuarios bloqueados pelo usuario atual com opcao de desbloqueio.
+
+**Fluxo:**
+1. Ao montar: `moderationService.getBlocks()` → lista de `Block[]`
+2. Renderiza cada block com: `blockedId` truncado ("Usuário {id.slice(0,8)}..."), `reason` (se houver), `createdAt` formatado
+3. Botao "Desbloquear" → `moderationService.unblockUser(blockedId)` → remove da lista
+4. Estados: loading (ActivityIndicator), empty ("Nenhum usuário bloqueado"), error (mensagem + retry)
+
+**Arquivo:** `mobile/src/screens/moderation/BlockedUsersScreen.tsx`
+
+#### ReportUserScreen
+
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+Permite denunciar um usuario com motivo e descricao opcional.
+
+**Fluxo:**
+1. Recebe `route.params.targetUserId` (obrigatorio) e `matchId` (opcional)
+2. Usuario seleciona 1 motivo entre 7 opcoes (radio buttons)
+3. Descricao opcional multiline (max 500 chars)
+4. "Enviar denúncia" → `moderationService.reportUser(...)` → alerta de sucesso → `navigation.goBack()`
+5. Estados: loading no botao, erro de validacao (motivo nao selecionado), erro de API
+
+**Arquivo:** `mobile/src/screens/moderation/ReportUserScreen.tsx`
+
+#### BlockUserButton
+
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+Componente reutilizavel que abre Alert de confirmacao antes de bloquear.
+
+**Props:** `targetUserId: string`, `onBlock?: () => void`
+**Fluxo:**
+1. Renderiza `Button` variant="danger", label="Bloquear usuário"
+2. On press: `Alert.alert("Bloquear usuário?", "Ele não poderá mais aparecer...")`
+3. Confirm → `moderationService.blockUser(targetUserId)` → alerta "Usuário bloqueado com sucesso" → `onBlock?.()`
+4. Loading/disabled durante a chamada
+
+**Arquivo:** `mobile/src/components/moderation/BlockUserButton.tsx`
+
+---
+
+## Feature: Onboarding Screens (Mobile)
+
+> **Versao:** 2.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida (atualizada)
+
+### Resumo
+Telas React Native do onboarding multi-step completo (9 telas), implementando os passos 1 a 7 mais introducao e conclusao. Consomem `onboardingService` e navegam sequencialmente atraves do `OnboardingNavigator`.
+
+### Telas
+
+| Tela | Rota | Step | Descricao |
+|------|------|------|-----------|
+| OnboardingIntro | `OnboardingIntro` | — | Boas-vindas com logo e descricao do app |
+| OnboardingIntent | `OnboardingIntent` | 1/7 | Selecao unica de intencao principal |
+| OnboardingGoals | `OnboardingGoals` | 2/7 | Multi-selecao de objetivos de bem-estar |
+| OnboardingActivities | `OnboardingActivities` | 3/7 | Multi-selecao de atividades preferidas |
+| OnboardingAvailability | `OnboardingAvailability` | 4/7 | Multi-selecao de periodos de disponibilidade |
+| OnboardingIntensity | `OnboardingIntensity` | 5/7 | Selecao unica de intensidade preferida |
+| OnboardingPrivacy | `OnboardingPrivacy` | 6/7 | Configuracoes de visibilidade e privacidade |
+| OnboardingSource | `OnboardingSource` | 7/7 | Origem dos dados (manual / smartwatch) + confirmacao final |
+| OnboardingCompleted | `OnboardingCompleted` | — | Tela de conclusao com animacao e acao para comecar |
+
+### Fluxo de Navegacao
+
+```
+OnboardingIntro → OnboardingIntent → OnboardingGoals → OnboardingActivities
+    → OnboardingAvailability → OnboardingIntensity → OnboardingPrivacy
+    → OnboardingSource → OnboardingCompleted → App (Match)
+```
+
+### OnboardingNavigator
+
+- `OnboardingNavigator` gerencia a pilha de telas de onboarding
+- `AppNavigator` verifica `onboardingCompleted` no estado global (auth.store.ts)
+- Se `onboardingCompleted = false` apos login/register, redireciona para `OnboardingNavigator`
+- `auth.store.ts` inclui `onboardingCompleted: boolean` e `checkOnboardingStatus()` que chama `GET /users/onboarding/status`
+
+### Padrao de Componente
+
+Cada tela segue o mesmo padrao:
+- `ScrollView` com `contentContainerStyle` para scroll
+- Indicador "Passo X de 7" no topo
+- Titulo e subtitulo com `typography`
+- Opcoes em cards com `colors.surfaceElevated` e `colors.border`
+- Card selecionado: `colors.primary` no border + `colors.primaryDim` no fundo
+- Radio (single-select) ou checkbox (multi-select) animado
+- `Button` component com `disabled` ate preencher requisito minimo
+- `loading` state que desabilita o botao e mostra `ActivityIndicator`
+- `error` state exibido como texto centralizado em `colors.error`
+- Chamada a `onboardingService.saveStepN()` + `navigation.navigate('ProximaRota')`
+
+### Estados
+
+| Estado | Comportamento |
+|--------|---------------|
+| Initial | Opcoes livres para toque, botao disabled se nenhuma selecionada |
+| Loading | Botao mostra spinner, toque bloqueado |
+| Error | Mensagem em vermelho exibida acima do botao |
+| Success | Navega para proxima tela |
+
+### Arquivos
+
+- Telas: `mobile/src/screens/onboarding/IntroScreen.tsx`, `IntentScreen.tsx`, `GoalsScreen.tsx`, `ActivitiesScreen.tsx`, `AvailabilityScreen.tsx`, `IntensityScreen.tsx`, `PrivacyScreen.tsx`, `SourceScreen.tsx`, `CompletedScreen.tsx`
+- Navegador: `mobile/src/navigation/OnboardingNavigator.tsx`
+- Servico: `mobile/src/services/onboarding.service.ts`
+- Store: `mobile/src/store/auth.store.ts`
+
+---
+
+---
+
+## Feature: Audit Module
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Registro centralizado de eventos importantes do sistema para rastreabilidade e conformidade LGPD.
+
+### Eventos Auditados
+
+| Servico | Eventos |
+|---------|---------|
+| AuthService | user_registered, login_success, login_failed |
+| OnboardingService | onboarding_completed |
+| HealthService | consent_granted, consent_revoked |
+| PrivacyService | privacy_export_requested, health_data_deleted, account_deleted |
+| ModerationService | user_blocked, user_unblocked, user_reported, moderation_action_taken |
+| MatchingService | match_created |
+| ChatService | message_sent, message_read |
+| PrivacyRetentionService | retention_cleanup_executed |
+
+### Fluxo
+
+1. Servico de negocio executa acao (ex: `AuthService.register()`)
+2. Servico chama `this.auditService.record({ userId, eventType, resourceType, resourceId, metadata, ipAddress })`
+3. `AuditService` persiste `AuditEvent` na tabela `audit_events`
+4. Evento e imutavel — nunca editado ou removido
+
+### Estrutura do Evento
+
+```typescript
+{
+  userId: string | null,
+  eventType: 'user_registered' | 'login_success' | ...,
+  resourceType: string | null,   // 'user', 'match', 'report', etc.
+  resourceId: string | null,     // UUID do recurso afetado
+  metadata: Record<string, any> | null,  // JSONB com dados contextuais
+  ipAddress: string | null,
+  createdAt: Date
+}
+```
+
+---
+
+## Feature: Healthcheck e Readiness
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Endpoints de saude operacional para monitoramento e orquestracao (Kubernetes, Docker healthcheck, load balancer).
+
+### Endpoints
+
+| Metodo | Rota | Descricao | Auth |
+|--------|------|-----------|------|
+| GET | `/health` | Retorna `{ status: 'ok', timestamp }` | Nao |
+| GET | `/ready` | Verifica conectividade com banco e Redis | Nao |
+
+### Fluxo
+
+1. `GET /health` — sempre retorna 200, usado para liveness probe
+2. `GET /ready` — tenta conectar no PostgreSQL e Redis, retorna 200 se ambos OK, 503 caso contrario
+3. Implementado em `HealthCheckController` (`src/modules/health-check`)
+
+---
+
+## Feature: Logging Estruturado
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Interceptor global para logging estruturado de todas as requisicoes HTTP.
+
+### Fluxo
+
+1. `LoggingInterceptor` implementa `NestInterceptor`
+2. Intercepta toda requisicao HTTP
+3. Registra: metodo, path, status code, duracao (ms), userId (se autenticado), timestamp
+4. Campos sensiveis (password, token, authorization) sao automaticamente redactados
+5. Saida em formato JSON estruturado para consumo por ferramentas de log (ELK, Datadog, etc.)
+
+---
+
+## Feature: Retencao Automatica de Dados
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Cron job diario para limpeza de dados expirados, garantindo conformidade com politica de retencao.
+
+### Fluxo
+
+1. `PrivacyRetentionService` agendado com `@Cron('0 3 * * *')` (03:00 todos os dias)
+2. Remove `health_metrics_raw` com `timestamp < 90 dias atras`
+3. Remove `audit_events` com `created_at < 1 ano atras` (eventos muito antigos)
+4. Remove `chat_messages` de matches bloqueados ha mais de 30 dias
+5. Registra evento `retention_cleanup_executed` no AuditModule
+
+### Dependencia
+
+- `@nestjs/schedule` adicionado ao `AppModule`
+- `ScheduleModule.forRoot()` importado no modulo raiz
+
+---
+
+### Metodo getWellnessSuggestions (v2)
+
+```
+hash = simpleHash(matchId)  // hash melhorado (shift+add+XOR)
+for i in [0, 7, 14]:
+    suggestion = corpus[(hash + i) % corpus.length]
+    result.push(suggestion)
+```
+
+Evita colisoes do metodo anterior (charCodeAt(0) gerava sempre as mesmas 2 sugestoes para matches comecando com a mesma letra).
+
+---
+
+## Feature: Profile Screen (Mobile)
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Tela de perfil do usuario que exibe informacoes pessoais (nome, email via `useAuthStore`) e o perfil publico de bem-estar (`PublicWellnessProfile`) obtido via `onboardingService.getWellnessProfile()`.
+
+### Layout
+- Cabecalho com avatar inicial, nome e email
+- Card "Seu Perfil Publico de Bem-Estar" com nota de privacidade
+- Campos exibidos como linhas label + valor: Intencao principal, Nivel de atividade, Consistencia, Rotina de sono, Cronotipo, Intensidade preferida
+- Arrays (atividades, objetivos, periodos, badges) exibidos como tags/chips
+- Campos nulos mostram "Nao informado" em cor muted
+- Menu de navegacao: Privacidade, Smartwatch, Exportar dados, Excluir conta, Sair
+
+### Estados
+| Estado | Comportamento |
+|--------|---------------|
+| Loading | `ActivityIndicator` centralizado |
+| Error | Mensagem de erro + botao "Tentar novamente" |
+| Empty (profile null) | Card "Complete o onboarding primeiro" + botao "Ir para o onboarding" |
+| Sucesso | Lista completa de campos do perfil |
+
+### Arquivo
+`mobile/src/screens/profile/ProfileScreen.tsx`
+
+---
+
+## Feature: Match Screen (Mobile) — Botoes de Moderacao
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Adiciona botoes de moderacao ("Denunciar" e "Bloquear") abaixo do card stack na tela de match, visiveis apenas quando ha candidatos disponiveis.
+
+### Fluxo
+1. MatchScreen carrega candidatos via `matchingService.getCandidates()`
+2. Quando `candidates.length > 0`, exibe botoes like/dislike + linha de moderacao
+3. "Denunciar": `TouchableOpacity` estilo ghost -> `navigation.navigate('ReportUser', { targetUserId })`
+4. "Bloquear": Componente `BlockUserButton` inline com `targetUserId` do candidato atual
+
+### Arquivo
+`mobile/src/screens/match/MatchScreen.tsx`

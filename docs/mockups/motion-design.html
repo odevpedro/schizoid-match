@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WellMatch — Motion Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-primary: #0a0a14;
+    --bg-secondary: #12122a;
+    --surface: #1a1a3a;
+    --surface-hover: #22224a;
+    --accent: #00e5a0;
+    --accent-glow: rgba(0,229,160,0.3);
+    --accent-secondary: #7c4dff;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255,255,255,0.7);
+    --text-tertiary: rgba(255,255,255,0.4);
+    --success: #66bb6a;
+    --error: #ef5350;
+    --warning: #ffa726;
+    --transition-base: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+  .scene-container { position: fixed; inset: 0; overflow: hidden; }
+  .scene {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transform: scale(0.95);
+    transition: opacity 0.8s var(--transition-base), transform 0.8s var(--transition-base);
+    will-change: opacity, transform;
+  }
+  .scene.active { opacity: 1; pointer-events: auto; transform: scale(1); }
+  .scene.exit { opacity: 0; transform: scale(1.05) translateY(-20px); }
+
+  .bg-gradient {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,229,160,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 100%, rgba(124,77,255,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(0,200,140,0.05) 0%, transparent 40%);
+    z-index: 0;
+  }
+  .bg-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    z-index: 0;
+  }
+  .bg-orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(80px); opacity: 0.15;
+    animation: orbFloat 20s ease-in-out infinite;
+    z-index: 0;
+  }
+  .bg-orb:nth-child(1) { width: 600px; height: 600px; background: var(--accent); top: -10%; left: -5%; animation-delay: 0s; }
+  .bg-orb:nth-child(2) { width: 400px; height: 400px; background: var(--accent-secondary); bottom: -5%; right: -5%; animation-delay: -7s; }
+  .bg-orb:nth-child(3) { width: 300px; height: 300px; background: #00c896; top: 50%; left: 50%; animation-delay: -14s; }
+
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(40px, -30px) scale(1.1); }
+    50% { transform: translate(-20px, 40px) scale(0.9); }
+    75% { transform: translate(30px, 20px) scale(1.05); }
+  }
+
+  .scene-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 40px; }
+
+  .phone {
+    position: relative; width: 280px; height: 580px;
+    background: linear-gradient(145deg, #1a1a2e, #12121e);
+    border-radius: 36px; padding: 10px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.03);
+    flex-shrink: 0;
+  }
+  .phone-screen { width: 100%; height: 100%; border-radius: 26px; background: #1a1a2e; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .phone-notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 24px; background: #12121e; border-radius: 0 0 16px 16px; z-index: 5; }
+  .phone-status { display: flex; justify-content: space-between; padding: 16px 20px 4px; font-size: 10px; color: var(--text-tertiary); font-weight: 500; }
+  .phone-topbar { display: flex; align-items: center; padding: 4px 16px 8px; min-height: 44px; }
+  .phone-topbar .back { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary); margin-right: 8px; }
+  .phone-topbar .ptitle { flex: 1; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .phone-topbar .paction { font-size: 12px; color: var(--accent); font-weight: 500; }
+  .phone-body { flex: 1; padding: 4px 16px 12px; overflow: hidden; display: flex; flex-direction: column; }
+
+  .pfield { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.06); }
+  .pfield-label { font-size: 9px; color: var(--text-tertiary); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pfield-value { font-size: 12px; color: var(--text-primary); }
+  .pfield-hint { font-size: 9px; color: var(--error); margin-top: 2px; }
+  .pfield-hint-ok { font-size: 9px; color: var(--success); margin-top: 2px; }
+
+  .pbtn { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: default; margin-bottom: 6px; }
+  .pbtn-primary { background: var(--accent); color: #0a0a14; }
+  .pbtn-secondary { background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.06); }
+  .pbtn-danger { background: #c62828; color: #fff; }
+  .pbtn-disabled { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.2); }
+  .pbtn-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; margin: 8px auto; }
+
+  .prec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: recPulse 1.5s infinite; display: inline-block; }
+  @keyframes recPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+  .prow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .pperm-ok { color: var(--success); font-size: 10px; }
+  .pperm-denied { color: var(--error); font-size: 10px; }
+
+  .pdetail { display: flex; justify-content: space-between; padding: 4px 0; font-size: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .pdetail-lbl { color: var(--text-tertiary); }
+  .pdetail-val { color: var(--text-secondary); text-align: right; max-width: 55%; word-break: break-all; }
+
+  .palert-error { background: rgba(198,40,40,0.15); border: 1px solid rgba(198,40,40,0.2); border-radius: 8px; padding: 10px; font-size: 10px; color: #ef9a9a; margin-bottom: 8px; line-height: 1.5; }
+  .palert-ok { background: rgba(27,94,32,0.15); border: 1px solid rgba(27,94,32,0.2); border-radius: 8px; padding: 10px; font-size: 10px; color: var(--success); margin-bottom: 8px; }
+  .palert-warn { background: rgba(255,143,0,0.12); border: 1px solid rgba(255,143,0,0.2); border-radius: 8px; padding: 10px; font-size: 10px; color: var(--warning); margin-bottom: 8px; }
+
+  .ptags { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
+  .ptag { background: rgba(0,229,160,0.12); color: #00e5a0; font-size: 9px; padding: 2px 8px; border-radius: 10px; }
+  .ptag-purple { background: rgba(124,77,255,0.12); color: #b388ff; font-size: 9px; padding: 2px 8px; border-radius: 10px; }
+
+  .pcard { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.04); }
+  .pcard-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .pcard-sub { font-size: 10px; color: var(--text-tertiary); }
+
+  .pchip-row { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+  .pchip { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 4px 10px; font-size: 9px; color: var(--text-secondary); }
+  .pchip-selected { background: rgba(0,229,160,0.12); border-color: rgba(0,229,160,0.2); color: #00e5a0; }
+
+  .pstep-dots { display: flex; justify-content: center; gap: 4px; margin: 8px 0; }
+  .pstep-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.1); }
+  .pstep-dot.active { background: var(--accent); }
+  .pstep-dot.done { background: rgba(0,229,160,0.4); }
+
+  .pslider-bg { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; margin: 8px 0; position: relative; }
+  .pslider-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 60%; }
+  .pslider-knob { position: absolute; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); left: 60%; margin-left: -8px; }
+
+  .pcompat-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pcompat-score { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .pcompat-label { font-size: 9px; color: var(--text-tertiary); }
+  .pcompat-bar { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; margin: 4px 0; overflow: hidden; }
+  .pcompat-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-secondary)); border-radius: 3px; }
+
+  .pconsent-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .pconsent-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .pconsent-info { flex: 1; }
+  .pconsent-name { font-size: 11px; color: var(--text-primary); font-weight: 500; }
+  .pconsent-desc { font-size: 9px; color: var(--text-tertiary); }
+  .ptoggle { width: 36px; height: 20px; border-radius: 10px; background: rgba(255,255,255,0.08); position: relative; flex-shrink: 0; }
+  .ptoggle.on { background: var(--accent); }
+  .ptoggle-knob { width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: 2px; transition: left 0.2s; }
+  .ptoggle.on .ptoggle-knob { left: 18px; }
+
+  .scene-label { position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%); z-index: 10; text-align: center; font-size: 12px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+  .scene-title { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; letter-spacing: -0.5px; }
+  .scene-subtitle { font-size: 14px; color: var(--text-secondary); font-weight: 300; line-height: 1.6; max-width: 500px; }
+  .scene-badge { display: inline-block; font-size: 10px; padding: 4px 14px; border-radius: 20px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 16px; }
+  .badge-happy { background: rgba(102,187,106,0.15); color: var(--success); border: 1px solid rgba(102,187,106,0.2); }
+  .badge-unhappy { background: rgba(239,83,80,0.15); color: var(--error); border: 1px solid rgba(239,83,80,0.2); }
+  .badge-system { background: rgba(124,77,255,0.15); color: var(--accent-secondary); border: 1px solid rgba(124,77,255,0.2); }
+  .badge-hero { background: rgba(0,229,160,0.12); color: var(--accent); border: 1px solid rgba(0,229,160,0.15); }
+
+  .layout-split { display: flex; align-items: center; gap: 80px; }
+  .layout-text { flex: 1; max-width: 420px; }
+
+  .anim-fade-up { opacity: 0; transform: translateY(20px); transition: opacity 0.6s var(--transition-base), transform 0.6s var(--transition-base); }
+  .scene.active .anim-fade-up { opacity: 1; transform: translateY(0); }
+  .scene.active .anim-delay-1 { transition-delay: 0.1s; }
+  .scene.active .anim-delay-2 { transition-delay: 0.2s; }
+  .scene.active .anim-delay-3 { transition-delay: 0.3s; }
+  .scene.active .anim-delay-4 { transition-delay: 0.4s; }
+  .scene.active .anim-delay-5 { transition-delay: 0.5s; }
+  .scene.active .anim-delay-6 { transition-delay: 0.6s; }
+  .scene.active .anim-delay-7 { transition-delay: 0.7s; }
+  .scene.active .anim-delay-8 { transition-delay: 0.8s; }
+
+  .anim-phone { opacity: 0; transform: translateX(40px) scale(0.95); transition: opacity 0.8s var(--transition-base), transform 0.8s var(--transition-base); transition-delay: 0.2s; }
+  .scene.active .anim-phone { opacity: 1; transform: translateX(0) scale(1); }
+
+  .hero-icon {
+    width: 80px; height: 80px; border-radius: 24px;
+    background: linear-gradient(135deg, var(--accent), #00b37e);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0,229,160,0.3);
+    animation: heroPulse 3s ease-in-out infinite;
+  }
+  @keyframes heroPulse { 0%, 100% { box-shadow: 0 8px 32px rgba(0,229,160,0.3); } 50% { box-shadow: 0 8px 48px rgba(0,229,160,0.5); } }
+
+  .hero-scroll { position: absolute; bottom: 80px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-tertiary); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; animation: heroBounce 2s ease-in-out infinite; }
+  @keyframes heroBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+  .pmatch-card {
+    background: linear-gradient(135deg, rgba(0,229,160,0.08), rgba(124,77,255,0.05));
+    border: 1px solid rgba(0,229,160,0.1);
+    border-radius: 12px; padding: 12px; margin-bottom: 8px;
+  }
+  .pmatch-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .pmatch-row { display: flex; align-items: center; gap: 10px; }
+
+  .pchat-bubble { padding: 8px 12px; border-radius: 12px; font-size: 11px; margin-bottom: 6px; max-width: 80%; line-height: 1.4; }
+  .pchat-mine { background: rgba(0,229,160,0.12); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .pchat-other { background: rgba(255,255,255,0.05); color: var(--text-secondary); align-self: flex-start; border-bottom-left-radius: 4px; }
+
+  .closing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; width: 100%; max-width: 600px; }
+  .closing-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px; text-align: center; }
+  .closing-icon { font-size: 24px; margin-bottom: 8px; }
+  .closing-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+  .closing-desc { font-size: 9px; color: var(--text-tertiary); margin-top: 4px; }
+
+  @media (max-width: 860px) {
+    .layout-split { flex-direction: column; gap: 32px; }
+    .layout-text { text-align: center; }
+    .scene-title { font-size: 22px; }
+    .phone { width: 240px; height: 500px; border-radius: 28px; }
+    .phone-screen { border-radius: 20px; }
+    .phone-body { padding: 2px 12px 8px; }
+  }
+  @media (max-width: 480px) {
+    .phone { width: 200px; height: 420px; border-radius: 24px; padding: 6px; }
+    .phone-screen { border-radius: 18px; }
+    .phone-status { font-size: 8px; padding: 10px 12px 2px; }
+    .phone-body { padding: 0 10px 6px; }
+    .scene-title { font-size: 18px; }
+    .scene-content { padding: 16px; }
+    .closing-grid { grid-template-columns: 1fr; }
+  }
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+<div class="scene-container" id="sceneContainer">
+  <!-- SCENE 0: HERO -->
+  <div class="scene active" data-index="0">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-orb"></div>
+    <div class="bg-orb"></div>
+    <div class="bg-orb"></div>
+    <div class="scene-content" style="text-align:center">
+      <div class="hero-icon anim-fade-up">🤝</div>
+      <div class="scene-title anim-fade-up anim-delay-1" style="font-size:36px;background:linear-gradient(135deg,#fff 30%,#00e5a0 70%);-webkit-background-clip:text;-webkit-text-fill-color:transparent">WellMatch</div>
+      <div class="scene-subtitle anim-fade-up anim-delay-2" style="margin-bottom:12px">Bem-estar que conecta</div>
+      <div class="scene-badge badge-hero anim-fade-up anim-delay-3">Privacy-first • Open Source</div>
+      <div class="hero-scroll anim-fade-up anim-delay-4">
+        <span>↓</span>
+        <span>Ver fluxo completo</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 1: AUTH / LOGIN -->
+  <div class="scene" data-index="1">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Sistema</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Login e<br>Registro</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Autenticação com JWT, validação de email e senha. Role user/moderator/admin incluso no payload.</div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--text-tertiary)">POST /auth/register</span>
+          <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);color:var(--text-tertiary)">POST /auth/login</span>
+        </div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-body">
+            <div style="text-align:center;font-size:16px;font-weight:700;color:#fff;margin:16px 0 4px">WellMatch</div>
+            <div style="text-align:center;font-size:10px;color:var(--text-tertiary);margin-bottom:16px">Bem-estar que conecta</div>
+            <div class="pfield"><div class="pfield-label">Email</div><div class="pfield-value">ana@wellmatch.app</div></div>
+            <div class="pfield"><div class="pfield-label">Senha</div><div class="pfield-value">••••••••••</div></div>
+            <div class="pbtn pbtn-primary" style="margin-top:8px">Entrar</div>
+            <div style="text-align:center;font-size:10px;color:var(--accent);margin-top:8px">Criar conta</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">① Login — JWT com role integrado</div>
+  </div>
+
+  <!-- SCENE 2: ONBOARDING -->
+  <div class="scene" data-index="2">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Sistema</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Onboarding<br>7 passos</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Intenção, metas, atividades, disponibilidade, intensidade, privacidade e conclusão. Perfil só fica visível após o passo 7.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-body">
+            <div class="pstep-dots"><div class="pstep-dot done"></div><div class="pstep-dot done"></div><div class="pstep-dot done"></div><div class="pstep-dot done"></div><div class="pstep-dot active"></div><div class="pstep-dot"></div><div class="pstep-dot"></div></div>
+            <div style="font-size:12px;font-weight:600;color:#fff;margin:4px 0 10px">Intensidade preferida</div>
+            <div class="pchip-row">
+              <div class="pchip">Baixa</div>
+              <div class="pchip-selected">Moderada</div>
+              <div class="pchip">Alta</div>
+            </div>
+            <div class="pslider-bg"><div class="pslider-fill"></div><div class="pslider-knob"></div></div>
+            <div style="font-size:9px;color:var(--text-tertiary);text-align:center">Intensidade moderada — 60%</div>
+            <div class="pbtn pbtn-primary" style="margin-top:16px">Continuar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">② Onboarding — 7 passos, perfil só visível após conclusão</div>
+  </div>
+
+  <!-- SCENE 3: MATCHING CANDIDATES -->
+  <div class="scene" data-index="3">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-happy anim-fade-up">Happy Path</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Candidatos<br>com compatibilidade</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Score com confidence, reasons e dimensions. Rate limit diário de swipe em transação SQL.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="ptitle">Candidatos</div><div class="paction">💬</div></div>
+          <div class="phone-body">
+            <div class="pmatch-card">
+              <div class="pmatch-row">
+                <div class="pmatch-avatar">A</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#fff">Ana Beatriz</div>
+                  <div style="font-size:9px;color:var(--text-tertiary)">25-30 • São Paulo</div>
+                </div>
+                <div style="margin-left:auto;text-align:right">
+                  <div class="pcompat-header" style="margin:0"><span class="pcompat-score" style="font-size:20px">48</span></div>
+                </div>
+              </div>
+              <div class="pcompat-bar"><div class="pcompat-fill" style="width:48%"></div></div>
+              <div style="display:flex;gap:4px;margin-top:4px">
+                <span class="ptag">✨ Ritmo similar</span>
+                <span class="ptag">🏋️ Intensidade</span>
+              </div>
+              <div class="prow" style="margin-top:6px;gap:6px">
+                <div class="pbtn pbtn-secondary" style="flex:1;font-size:14px;padding:8px">✕</div>
+                <div class="pbtn pbtn-primary" style="flex:1;font-size:14px;padding:8px">✓</div>
+              </div>
+            </div>
+            <div class="pmatch-card" style="opacity:0.6">
+              <div class="pmatch-row">
+                <div class="pmatch-avatar">J</div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#fff">Júlia Martins</div>
+                  <div style="font-size:9px;color:var(--text-tertiary)">25-30 • Rio de Janeiro</div>
+                </div>
+                <div style="margin-left:auto;text-align:right">
+                  <div class="pcompat-header" style="margin:0"><span class="pcompat-score" style="font-size:20px">47</span></div>
+                </div>
+              </div>
+              <div class="pcompat-bar"><div class="pcompat-fill" style="width:47%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">③ Matching — Score, reasons, swipe em transação</div>
+  </div>
+
+  <!-- SCENE 4: MATCH + CHAT -->
+  <div class="scene" data-index="4">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-happy anim-fade-up">Happy Path</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Match + Chat<br>em tempo real</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Swipe recíproco → match imediato. WebSocket para mensagens em tempo real com validação de participação.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="back">←</div><div class="ptitle">Ana Beatriz</div></div>
+          <div class="phone-body" style="overflow-y:auto">
+            <div style="text-align:center;margin:4px 0 8px">
+              <span class="ptag-purple">Match! 🤝</span>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div class="pchat-bubble pchat-other" style="align-self:flex-start">Oi! Vi que você também gosta de caminhar ao ar livre!</div>
+              <div class="pchat-bubble pchat-mine" style="align-self:flex-end">Sim! Que tal irmos juntos no parque no sábado?</div>
+              <div class="pchat-bubble pchat-other" style="align-self:flex-start">Ótima ideia! 😊</div>
+            </div>
+            <div class="pfield" style="display:flex;gap:6px;margin-top:auto;padding:8px 10px">
+              <div style="flex:1;font-size:11px;color:var(--text-tertiary)">Digite sua mensagem...</div>
+              <div style="font-size:14px;color:var(--accent)">➤</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">④ Match + Chat — WebSocket com validação de participação</div>
+  </div>
+
+  <!-- SCENE 5: CONSENTIMENTO -->
+  <div class="scene" data-index="5">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Privacidade</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Consentimento<br>granular</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Ative dados por métrica: passos, sono, FC, HRV. Cada uma com finalidade específica. Revogação remove dados do perfil público.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="back">←</div><div class="ptitle">Privacidade</div></div>
+          <div class="phone-body">
+            <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">DADOS COMPARTILHADOS</div>
+            <div class="pconsent-row">
+              <div class="pconsent-icon" style="background:rgba(0,229,160,0.12);color:var(--accent)">👟</div>
+              <div class="pconsent-info"><div class="pconsent-name">Passos</div><div class="pconsent-desc">Para matching de compatibilidade</div></div>
+              <div class="ptoggle on"><div class="ptoggle-knob"></div></div>
+            </div>
+            <div class="pconsent-row">
+              <div class="pconsent-icon" style="background:rgba(0,229,160,0.12);color:var(--accent)">🌙</div>
+              <div class="pconsent-info"><div class="pconsent-name">Sono</div><div class="pconsent-desc">Para matching de compatibilidade</div></div>
+              <div class="ptoggle on"><div class="ptoggle-knob"></div></div>
+            </div>
+            <div class="pconsent-row">
+              <div class="pconsent-icon" style="background:rgba(124,77,255,0.12);color:#b388ff">❤️</div>
+              <div class="pconsent-info"><div class="pconsent-name">Frequência Cardíaca</div><div class="pconsent-desc">Dado sensível • Para badges</div></div>
+              <div class="ptoggle"><div class="ptoggle-knob"></div></div>
+            </div>
+            <div class="pconsent-row">
+              <div class="pconsent-icon" style="background:rgba(124,77,255,0.12);color:#b388ff">📊</div>
+              <div class="pconsent-info"><div class="pconsent-name">HRV</div><div class="pconsent-desc">Dado sensível • Para badges</div></div>
+              <div class="ptoggle"><div class="ptoggle-knob"></div></div>
+            </div>
+            <div style="margin-top:6px">
+              <div class="pbtn pbtn-secondary" style="font-size:10px">+ Adicionar permissão</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">⑤ Consentimento — Granular por métrica, finalidade e versão</div>
+  </div>
+
+  <!-- SCENE 6: BLOQUEIO E DENÚNCIA -->
+  <div class="scene" data-index="6">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Moderação</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Bloqueio e<br>Denúncia</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Bloqueio desativa matches ativos. Denúncia com 7 motivos. Moderadores podem tomar ações.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="back">←</div><div class="ptitle">Denunciar</div></div>
+          <div class="phone-body">
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px">Motivo da denúncia</div>
+            <div class="pchip-row" style="flex-direction:column;gap:4px">
+              <div class="pchip" style="width:100%;text-align:left">Comportamento inapropriado</div>
+              <div class="pchip" style="width:100%;text-align:left">Mensagem ofensiva</div>
+              <div class="pchip-selected" style="width:100%;text-align:left">Perfil falso</div>
+              <div class="pchip" style="width:100%;text-align:left">Assédio</div>
+              <div class="pchip" style="width:100%;text-align:left">Spam</div>
+            </div>
+            <div class="pfield" style="margin-top:4px">
+              <div class="pfield-label">Descrição (opcional)</div>
+              <div class="pfield-value" style="font-size:10px;color:var(--text-tertiary)">O perfil parece usar fotos de outra pessoa...</div>
+            </div>
+            <div class="pbtn pbtn-primary" style="margin-top:4px">Enviar denúncia</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">⑥ Moderação — Bloqueio, denúncia, ação do moderador</div>
+  </div>
+
+  <!-- SCENE 7: PERFIL PÚBLICO -->
+  <div class="scene" data-index="7">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-happy anim-fade-up">Perfil</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Perfil Público<br>de Bem-Estar</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">19 campos semânticos seguros sem dados brutos de saúde. Banda de atividade, cronotipo, intensidade.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="back">←</div><div class="ptitle">Ana Beatriz</div></div>
+          <div class="phone-body" style="overflow-y:auto">
+            <div class="pmatch-row" style="margin-bottom:8px">
+              <div class="pmatch-avatar" style="width:48px;height:48px;font-size:20px">A</div>
+              <div>
+                <div style="font-size:14px;font-weight:600;color:#fff">Ana Beatriz</div>
+                <div style="font-size:10px;color:var(--text-tertiary)">25-30 • São Paulo, SP</div>
+              </div>
+            </div>
+            <div class="pdetail"><span class="pdetail-lbl">Intenção</span><span class="pdetail-val">Parceiro(a) de caminhada</span></div>
+            <div class="pdetail"><span class="pdetail-lbl">Atividade</span><span class="pdetail-val">Moderada</span></div>
+            <div class="pdetail"><span class="pdetail-lbl">Consistência</span><span class="pdetail-val">Média</span></div>
+            <div class="pdetail"><span class="pdetail-lbl">Sono</span><span class="pdetail-val">Regular</span></div>
+            <div class="pdetail"><span class="pdetail-lbl">Cronotipo</span><span class="pdetail-val">Matutino</span></div>
+            <div class="pdetail"><span class="pdetail-lbl">Intensidade</span><span class="pdetail-val">Baixa</span></div>
+            <div style="font-size:9px;color:var(--text-tertiary);margin-top:6px;text-align:center">Confiança: Média • Fonte: Manual</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">⑦ Perfil — 19 campos semânticos, sem dados brutos</div>
+  </div>
+
+  <!-- SCENE 8: AUDITORIA -->
+  <div class="scene" data-index="8">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Auditoria</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Audit Trail<br>com 18 eventos</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Cada ação crítica registrada: login, consentimento, match, bloqueio, denúncia, moderação, retenção.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="ptitle">Auditoria</div></div>
+          <div class="phone-body" style="overflow-y:auto">
+            <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
+              <span class="ptag-purple">user_registered</span>
+              <span class="ptag">login_success</span>
+              <span class="ptag-purple">consent_granted</span>
+              <span class="ptag">match_created</span>
+              <span class="ptag-purple">user_blocked</span>
+            </div>
+            <div class="pevent" style="position:relative;padding:0 0 8px 12px;border-left:1.5px solid rgba(255,255,255,0.06);margin-left:4px">
+              <div class="pevent-dot" style="position:absolute;left:-5px;top:2px;width:8px;height:8px;border-radius:50%;background:var(--accent)"></div>
+              <div style="font-size:9px;font-weight:600;color:var(--text-secondary)">match_created</div>
+              <div style="font-size:8px;color:var(--text-tertiary)">04/07 15:30:22</div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.3)">Ana ↔ Júlia</div>
+            </div>
+            <div class="pevent" style="position:relative;padding:0 0 8px 12px;border-left:1.5px solid rgba(255,255,255,0.06);margin-left:4px">
+              <div class="pevent-dot" style="position:absolute;left:-5px;top:2px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15)"></div>
+              <div style="font-size:9px;font-weight:600;color:var(--text-secondary)">consent_granted</div>
+              <div style="font-size:8px;color:var(--text-tertiary)">04/07 15:28:10</div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.3)">steps • matching_compatibility</div>
+            </div>
+            <div class="pevent" style="position:relative;padding:0 0 8px 12px;border-left:1.5px solid rgba(255,255,255,0.06);margin-left:4px">
+              <div class="pevent-dot" style="position:absolute;left:-5px;top:2px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15)"></div>
+              <div style="font-size:9px;font-weight:600;color:var(--text-secondary)">login_success</div>
+              <div style="font-size:8px;color:var(--text-tertiary)">04/07 15:25:00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">⑧ Auditoria — 18 tipos de evento, @Global() em 7 serviços</div>
+  </div>
+
+  <!-- SCENE 9: HEALTHCHECK -->
+  <div class="scene" data-index="9">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Sistema</div>
+        <div class="scene-title anim-fade-up anim-delay-1">Healthcheck +<br>Readiness</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">GET /health (viva) e GET /ready (PostgreSQL, Redis, config). Logging interceptor em todas as rotas.</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-body" style="justify-content:center;align-items:center">
+            <div style="text-align:center">
+              <div style="width:56px;height:56px;border-radius:50%;background:rgba(102,187,106,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:28px">✓</div>
+              <div style="font-size:16px;font-weight:700;color:#fff">Status: Saudável</div>
+              <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px">PostgreSQL: OK</div>
+              <div style="font-size:10px;color:var(--text-tertiary)">Redis: OK</div>
+              <div style="font-size:10px;color:var(--text-tertiary)">Config: OK</div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:12px">wellmatch-backend v0.3.0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">⑨ Healthcheck + Readiness + Logging interceptor</div>
+  </div>
+
+  <!-- SCENE 10: PRIVACIDADE E RETENÇÃO -->
+  <div class="scene" data-index="10">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="layout-split scene-content" style="max-width:1000px;margin:0 auto">
+      <div class="layout-text">
+        <div class="scene-badge badge-system anim-fade-up">Privacidade</div>
+        <div class="scene-title anim-fade-up anim-delay-2">Export LGPD,<br>retenção automática</div>
+        <div class="scene-subtitle anim-fade-up anim-delay-2">Export de todos os dados em JSON. Retenção automática: dados brutos apagados após 30 dias (cron 03:00).</div>
+      </div>
+      <div class="phone anim-phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="phone-status"><span>9:41</span><span>🔋 87%</span></div>
+          <div class="phone-topbar"><div class="back">←</div><div class="ptitle">Privacidade</div></div>
+          <div class="phone-body">
+            <div class="pcard">
+              <div class="pcard-title">📥 Exportar dados</div>
+              <div class="pcard-sub">LGPD • Todos os seus dados em JSON</div>
+            </div>
+            <div class="pcard">
+              <div class="pcard-title">🗑 Excluir dados de saúde</div>
+              <div class="pcard-sub">Remove métricas brutas e perfis</div>
+            </div>
+            <div class="pcard" style="border-color:rgba(198,40,40,0.2)">
+              <div class="pcard-title" style="color:#ef5350">⚠ Excluir conta</div>
+              <div class="pcard-sub">Remove permanentemente todos os dados</div>
+            </div>
+            <div style="margin-top:8px;font-size:9px;color:var(--text-tertiary);text-align:center">
+              Retenção automática: 30 dias • Cron diário 03:00
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-label">⑩ Privacidade — Export LGPD, retenção 30d, cron 03:00</div>
+  </div>
+
+  <!-- SCENE 11: CLOSING -->
+  <div class="scene" data-index="11">
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-orb"></div>
+    <div class="bg-orb"></div>
+    <div class="scene-content" style="text-align:center">
+      <div class="hero-icon anim-fade-up" style="width:64px;height:64px;font-size:28px;border-radius:18px">🔐</div>
+      <div class="scene-title anim-fade-up anim-delay-1" style="font-size:30px">WellMatch v0.3.0</div>
+      <div class="scene-subtitle anim-fade-up anim-delay-2" style="margin-bottom:20px">Resumo do que entregamos</div>
+      <div class="closing-grid anim-fade-up anim-delay-3">
+        <div class="closing-item">
+          <div class="closing-icon">🤝</div>
+          <div class="closing-label">Matching semântico</div>
+          <div class="closing-desc">Score com confidence, reasons e dimensions</div>
+        </div>
+        <div class="closing-item">
+          <div class="closing-icon">🔐</div>
+          <div class="closing-label">Privacy-first</div>
+          <div class="closing-desc">Consentimento granular, revogação com efeito</div>
+        </div>
+        <div class="closing-item">
+          <div class="closing-icon">📱</div>
+          <div class="closing-label">Onboarding 7 passos</div>
+          <div class="closing-desc">Intenção → Metas → Atividades → Conclusão</div>
+        </div>
+        <div class="closing-item">
+          <div class="closing-icon">⛔</div>
+          <div class="closing-label">Moderação</div>
+          <div class="closing-desc">Bloqueio, denúncia, ação do moderador</div>
+        </div>
+        <div class="closing-item">
+          <div class="closing-icon">📋</div>
+          <div class="closing-label">Auditoria</div>
+          <div class="closing-desc">18 eventos em 7 serviços</div>
+        </div>
+        <div class="closing-item">
+          <div class="closing-icon">✅</div>
+          <div class="closing-label">Testes</div>
+          <div class="closing-desc">19 unitários + 14 integração</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('sceneContainer');
+    const scenes = container.querySelectorAll('.scene');
+    let current = 0;
+    let animating = false;
+
+    function showScene(index) {
+      if (animating || index < 0 || index >= scenes.length || index === current) return;
+      animating = true;
+      const prev = scenes[current];
+      const next = scenes[index];
+      prev.classList.remove('active');
+      prev.classList.add('exit');
+      setTimeout(() => {
+        prev.classList.remove('exit');
+        next.classList.add('active');
+        current = index;
+        animating = false;
+      }, 400);
+    }
+
+    function nextScene() { showScene(current + 1); }
+    function prevScene() { showScene(current - 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextScene(); }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); prevScene(); }
+    });
+
+    let touchStartY = 0;
+    container.addEventListener('touchstart', (e) => { touchStartY = e.touches[0].clientY; });
+    container.addEventListener('touchend', (e) => {
+      const diff = touchStartY - e.changedTouches[0].clientY;
+      if (Math.abs(diff) > 50) { diff > 0 ? nextScene() : prevScene(); }
+    });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (Math.abs(e.deltaY) > 30) { e.deltaY > 0 ? nextScene() : prevScene(); }
+    }, { passive: false });
+
+    // Timer animation for scene 4 (recording)
+    if (typeof setInterval !== 'undefined') {
+      let recSeconds = 12;
+      const timerEls = document.querySelectorAll('.ptimer');
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,19 +1,12 @@
-# Schizoid-Match
+# WellMatch
 
-> Plataforma de match social baseada em dados de saude e habitos de smartwatch — conecta pessoas por objetivos de bem-estar, rotina e estilo de vida, sem expor dados medicos sensiveis.
-
-[![Build Status](https://img.shields.io/github/actions/workflow/status/odevpedro/schizoid-match/ci.yml?branch=main&style=flat-square)](https://github.com/odevpedro/schizoid-match/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/odevpedro/schizoid-match?style=flat-square)](https://codecov.io/gh/odevpedro/schizoid-match)
-[![License](https://img.shields.io/github/license/odevpedro/schizoid-match?style=flat-square)](./LICENSE)
-[![Last Commit](https://img.shields.io/github/last-commit/odevpedro/schizoid-match?style=flat-square)](https://github.com/odevpedro/schizoid-match/commits/main)
+> Um aplicativo privacy-first para encontrar pessoas com rotinas compatíveis para caminhar, treinar, manter hábitos saudáveis e criar companhia de rotina — sem expor dados sensíveis de saúde.
 
 ---
 
 ## Sobre o Projeto
 
-Schizoid-Match e uma aplicacao mobile que usa dados derivados de smartwatches (passos, sono, nivel de atividade, cronotype) para calcular compatibilidade entre usuarios. O foco e privacidade: dados brutos nunca sao exibidos a outros usuarios — apenas badges, faixas e scores agregados sao usados.
-
-O sistema funciona como um app de swipe (like/dislike), mas a compatibilidade e baseada em habitos, objetivos de bem-estar e disponibilidade, nao em aparencia fisica.
+WellMatch conecta pessoas por hábitos, objetivos de bem-estar e disponibilidade de rotina, não por aparência física ou dados médicos. O foco é privacidade radical: nenhum dado bruto de saúde é armazenado ou exposto — apenas preferências declaradas e bandas semânticas seguras são usadas para calcular compatibilidade entre perfis.
 
 ---
 
@@ -42,7 +35,7 @@ health/
 ├── backend/                   # NestJS API
 │   ├── src/
 │   │   ├── modules/
-│   │   │   ├── auth/          # JWT, LocalStrategy, guards
+│   │   │   ├── auth/          # JWT, LocalStrategy, guards, RolesGuard
 │   │   │   ├── users/         # User, UserPreferences
 │   │   │   ├── health/        # Metricas, perfil derivado, consentimento
 │   │   │   │   ├── providers/ # HealthProvider interface + SimulatedProvider
@@ -50,16 +43,20 @@ health/
 │   │   │   ├── matching/      # Swipe, Match, CompatibilityCalculator
 │   │   │   ├── chat/          # ChatService, ChatGateway (WebSocket)
 │   │   │   ├── challenges/    # Desafios em dupla
-│   │   │   └── privacy/       # LGPD: export, delete
-│   │   ├── common/            # Filtros, interceptors, decorators
+│   │   │   ├── privacy/       # LGPD: export, delete
+│   │   │   ├── audit/         # AuditEvent, AuditService
+│   │   │   └── health-check/  # HealthCheckController
+│   │   ├── common/            # Filtros, interceptors, decorators, Roles decorator
 │   │   └── config/            # Database, Redis config
 │   ├── Dockerfile
 │   └── package.json
 ├── mobile/                    # React Native App
 │   ├── src/
 │   │   ├── navigation/        # AppNavigator, AuthNavigator, MainNavigator
-│   │   ├── screens/           # auth, match, chat, profile, challenges, privacy
-│   │   ├── components/        # WellnessCard, CompatibilityBar, badges, chat
+│   │   ├── screens/           # auth, match, chat, profile, challenges, privacy, moderation
+│   │   │   ├── onboarding/    # Intro, Intent, Goals, Activities, Availability, Intensity, Privacy, Source
+│   │   │   └── moderation/    # BlockedUsers, ReportUser
+│   │   ├── components/        # WellnessCard, CompatibilityBar, badges, chat, moderation
 │   │   ├── services/          # api.ts, auth, matching, chat, health, socket
 │   │   ├── store/             # Zustand: auth, match, chat
 │   │   ├── theme/             # colors, typography, spacing
@@ -91,7 +88,7 @@ health/
 
 ```bash
 # 1. Clone o repositorio
-git clone https://github.com/odevpedro/schizoid-match.git && cd schizoid-match
+git clone <url-do-repositorio> && cd health
 
 # 2. Configure as variaveis de ambiente
 cp .env.example .env
@@ -138,22 +135,48 @@ cd infra && docker compose up -d
 | POST | `/chat/send` | Enviar mensagem (REST fallback) | Sim |
 | GET | `/challenges` | Desafios ativos do usuario | Sim |
 | POST | `/challenges` | Criar desafio com parceiro | Sim |
-| GET | `/privacy/export` | Exportar todos os dados (LGPD) | Sim |
+| GET | `/users/me/wellness-profile` | Perfil publico de bem-estar do usuario | Sim |
+| GET | `/users/onboarding/status` | Status do onboarding | Sim |
+| POST | `/users/onboarding/step1-7` | Multi-step onboarding | Sim |
+| POST | `/health/consent/grant` | Conceder consentimento (com purpose e version) | Sim |
+| POST | `/health/consent/revoke` | Revogar (remove campos publicos) | Sim |
+| POST | `/health/ingest` | Importar dados do smartwatch | Sim |
+| GET | `/health/profile` | Perfil derivado (bandas seguras) | Sim |
+| GET | `/matching/candidates` | Lista de candidatos ranqueados | Sim |
+| POST | `/matching/swipe` | Like ou dislike (transactional) | Sim |
+| GET | `/matching/matches` | Todos os matches ativos | Sim |
+| GET | `/chat/conversations` | Lista de conversas | Sim |
+| GET | `/chat/:matchId/messages` | Mensagens de um match | Sim |
+| POST | `/chat/send` | Enviar mensagem (REST fallback) | Sim |
+| POST | `/moderation/block` | Bloquear usuario | Sim |
+| DELETE | `/moderation/block/:id` | Desbloquear | Sim |
+| GET | `/moderation/blocks` | Listar bloqueios | Sim |
+| POST | `/moderation/report` | Denunciar usuario | Sim |
+| GET | `/moderation/reports` | Ver denuncias | Sim |
+| — | `BlockedUsers` (mobile) | Tela de bloqueios com desbloqueio | — |
+| — | `ReportUser` (mobile) | Tela de denuncia com motivo e descricao | — |
+| — | `BlockUserButton` (mobile) | Botao reutilizavel com confirmacao | — |
+| GET | `/challenges` | Desafios ativos | Sim |
+| POST | `/challenges` | Criar desafio | Sim |
+| GET | `/health` | Healthcheck basico | Nao |
+| GET | `/ready` | Readiness probe (banco, redis) | Nao |
+| GET | `/privacy/export` | Exportar dados (LGPD) | Sim |
 | DELETE | `/privacy/health-data` | Excluir dados de saude | Sim |
-| DELETE | `/privacy/account` | Excluir conta permanentemente | Sim |
+| DELETE | `/privacy/account` | Excluir conta | Sim |
 
 ---
 
 ## WebSocket — Eventos
 
-| Evento | Direcao | Payload |
-|--------|---------|---------|
-| `join:match` | Client → Server | `{ matchId: string }` |
-| `message:send` | Client → Server | `{ matchId: string, message: string }` |
-| `message:received` | Server → Client | `ChatMessage` |
-| `match:new` | Server → Client | `{ matchId: string }` |
+| Evento | Direcao | Payload | Seguranca |
+|--------|---------|---------|-----------|
+| `join:match` | Client → Server | `{ matchId: string }` | Validacao de participacao |
+| `message:send` | Client → Server | `{ matchId: string, message: string }` | Validacao de acesso server-side |
+| `message:received` | Server → Client | `ChatMessage` | — |
+| `match:new` | Server → Client | `{ matchId: string }` | — |
+| `message:read` | Client → Server | `{ matchId: string, messageId: string }` | Marcar como lida com timestamp |
 
-Autenticacao via `handshake.auth.token` (JWT).
+Autenticacao via `handshake.auth.token` (JWT). Acesso a match validado em todos os eventos.
 
 ---
 
@@ -196,9 +219,14 @@ npm run test:e2e      # end-to-end (requer banco rodando)
 
 | Documento | Descricao |
 |-----------|-----------|
-| [Arquitetura](./docs/architecture.md) | Visao geral, diagramas, privacidade, compatibilidade |
+| [Arquitetura](./docs/architecture.md) | Visao geral, diagramas, modulos, privacidade |
 | [Fluxos de Features](./docs/system-feature-flows.md) | Fluxo interno de cada funcionalidade |
 | [Modelo de Dados](./docs/data-model.md) | Entidades, relacionamentos, enums, privacidade por campo |
+| [Algoritmo de Matching](./docs/matching-algorithm.md) | Dimensoes, pesos, escore, confianca |
+| [Fluxo de Onboarding](./docs/onboarding-flow.md) | 7 passos, validacoes, estados de erro |
+| [Seguranca](./docs/security.md) | Auth, rate limits, WebSocket, bloqueio, moderacao |
+| [Privacidade](./docs/privacy-retention.md) | Classificacao de dados, retencao, consentimento, exclusao |
+| [Moderacao](./docs/moderation.md) | Block, report, moderation action |
 | [Backlog](./backlog.md) | Status de desenvolvimento, bugs, roadmap |
 
 ---
@@ -207,8 +235,9 @@ npm run test:e2e      # end-to-end (requer banco rodando)
 
 ```
 [x] v0.1.0 MVP — core implementado (backend + mobile + infra + docs)
-[ ] v0.2.0 — integracao real com HealthKit / Health Connect
-[ ] v0.3.0 — geolocation, filtros avancados, testes de integracao
+[x] v0.2.0 — onboarding multi-step, moderacao, perfil seguro
+[x] v0.3.0 — audit, roles, healthcheck, logs estruturados, retencao, onboarding mobile completo, testes de integracao
+[ ] v0.4.0 — geolocation, filtros avancados, notificacoes
 [ ] v1.0.0 — producao, CI/CD, modelo ML de compatibilidade
 ```
 

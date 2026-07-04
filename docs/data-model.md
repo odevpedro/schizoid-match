@@ -1,7 +1,7 @@
-# Data Model — Schizoid-Match
+# Data Model — WellMatch
 
 > Documento vivo do modelo de dados. Atualizado sempre que uma entidade for criada, alterada ou removida.
-> **Ultima atualizacao:** 2026-05-08
+> **Ultima atualizacao:** 2026-07-04
 
 ---
 
@@ -9,7 +9,7 @@
 
 - [Visao Geral](#visao-geral)
 - [Diagrama ER](#diagrama-er)
-- [Entidades: schizoid-match](#entidades-schizoid-match)
+- [Entidades: wellmatch](#entidades-wellmatch)
 - [Entidades: Surak](#entidades-surak)
 - [Enums e Dominio de Valores](#enums-e-dominio-de-valores)
 - [Indices e Performance](#indices-e-performance)
@@ -20,7 +20,7 @@
 
 ## Visao Geral
 
-O modelo e dividido em dois servicos com bancos independentes. O banco principal (PostgreSQL + TimescaleDB) pertence ao backend schizoid-match e armazena usuarios, metricas de saude, perfis derivados, matches e chat. O microsservico Surak (Java/Spring) e stateless — processa e devolve resultados, sem persistencia propria.
+O modelo e dividido em dois servicos com bancos independentes. O banco principal (PostgreSQL + TimescaleDB) pertence ao backend wellmatch e armazena usuarios, preferencias, perfis derivados, matches e chat. O microsservico Surak (Java/Spring) e stateless — processa e devolve resultados, sem persistencia propria.
 
 **Banco principal:** PostgreSQL 15 + TimescaleDB
 **ORM:** TypeORM (NestJS)
@@ -41,6 +41,7 @@ erDiagram
         date birthdate
         string gender_optional
         string location_region
+        string role
         bool is_deleted
     }
 
@@ -137,13 +138,28 @@ erDiagram
         bool completed
     }
 
+    audit_events {
+        uuid id PK
+        uuid user_id FK
+        string event_type
+        string resource_type
+        uuid resource_id
+        jsonb metadata
+        string ip_address
+        datetime created_at
+    }
+
     users ||--|| user_preferences : "tem"
     users ||--o{ consent_records : "registra"
     users ||--o{ health_metrics_raw : "gera"
     users ||--o{ health_profile_daily : "tem"
-    users ||--|| public_health_profile : "expoe"
+    users ||--|| public_health_profile : "expoe (legacy)"
+    users ||--|| public_wellness_profile : "expoe"
     users ||--o{ swipe_history : "realiza"
     users ||--o{ matches : "participa"
+    users ||--o{ blocks : "bloqueia"
+    users ||--o{ reports : "denuncia"
+    users ||--o{ audit_events : "audita"
     matches ||--o{ chat_messages : "contem"
     matches ||--o{ challenges : "origina"
     challenges ||--o{ challenge_progress : "registra"
@@ -151,7 +167,7 @@ erDiagram
 
 ---
 
-## Entidades: schizoid-match
+## Entidades: wellmatch
 
 ---
 
@@ -173,6 +189,7 @@ erDiagram
 | `bio` | TEXT | Sim | NULL | Descricao livre do usuario |
 | `location_region` | VARCHAR(255) | Sim | NULL | Regiao textual aproximada |
 | `avatar_url` | VARCHAR(500) | Sim | NULL | URL da foto de perfil |
+| `role` | VARCHAR(20) | Nao | 'user' | user / moderator / admin |
 | `is_deleted` | BOOLEAN | Nao | FALSE | Soft delete LGPD |
 | `deleted_at` | TIMESTAMPTZ | Sim | NULL | Data da exclusao logica |
 | `created_at` | TIMESTAMPTZ | Nao | NOW() | Data de cadastro |
@@ -207,6 +224,7 @@ erDiagram
 ### consent_records
 
 > Log auditavel de consentimento por metrica de saude. Exigido pela LGPD art. 11.
+> Inclui purpose, consent_version e metadata para rastreabilidade expandida (v0.2.0).
 
 **Tabela:** `consent_records`
 **Servico:** backend/modules/health
@@ -217,10 +235,14 @@ erDiagram
 | `user_id` | UUID | Nao | — | FK para users |
 | `metric_type` | VARCHAR(100) | Nao | — | Ver enum HealthMetricType |
 | `permission_status` | VARCHAR(20) | Nao | — | granted / revoked / pending |
+| `purpose` | VARCHAR(50) | Nao | 'matching_compatibility' | Finalidade do consentimento |
+| `consent_version` | VARCHAR(10) | Nao | 'v1' | Versao da politica de consentimento |
 | `granted_at` | TIMESTAMPTZ | Sim | NULL | Momento do consentimento |
 | `revoked_at` | TIMESTAMPTZ | Sim | NULL | Momento da revogacao |
 | `source_provider` | VARCHAR(100) | Sim | NULL | Origem: simulated, healthkit, health_connect... |
+| `metadata` | JSONB | Sim | NULL | Metadados adicionais |
 | `created_at` | TIMESTAMPTZ | Nao | NOW() | Data do registro |
+| `updated_at` | TIMESTAMPTZ | Nao | NOW() | Ultima atualizacao |
 
 ---
 
@@ -352,6 +374,7 @@ erDiagram
 ### chat_messages
 
 > Mensagens de chat entre usuarios com match ativo.
+> Inclui read_at com timestamp preciso de leitura (v0.2.0).
 
 **Tabela:** `chat_messages`
 **Servico:** backend/modules/chat
@@ -363,6 +386,7 @@ erDiagram
 | `sender_id` | UUID | Nao | FK para users |
 | `message` | TEXT | Nao | Conteudo da mensagem |
 | `is_read` | BOOLEAN | Nao | FALSE | Status de leitura |
+| `read_at` | TIMESTAMPTZ | Sim | NULL | Timestamp de leitura |
 | `timestamp` | TIMESTAMPTZ | Nao | NOW() |
 
 ---
@@ -391,6 +415,147 @@ erDiagram
 
 ---
 
+### public_wellness_profile
+
+> Perfil seguro para matching baseado em bandas semanticas (v0.2.0).
+> Substitui public_health_profile como fonte principal de dados de matching.
+> Nao armazena dados brutos de saude — apenas preferencias declaradas e bandas derivadas.
+
+**Tabela:** `public_wellness_profile`
+**Servico:** backend/modules/matching
+
+| Campo | Tipo SQL | Nullable | Default | Descricao |
+|-------|----------|----------|---------|-----------|
+| `user_id` | UUID PK | Nao | — | FK para users |
+| `activity_level` | VARCHAR(20) | Sim | NULL | low / moderate / active / very_active |
+| `activity_consistency_band` | VARCHAR(10) | Sim | NULL | low / medium / high |
+| `sleep_routine_band` | VARCHAR(15) | Sim | NULL | irregular / regular / consistent |
+| `chronotype_band` | VARCHAR(10) | Sim | NULL | early / morning / flexible / evening / night |
+| `intensity_preference` | VARCHAR(10) | Sim | NULL | low / moderate / high / flexible |
+| `main_intention` | VARCHAR(50) | Sim | NULL | Intencao principal declarada no onboarding |
+| `preferred_activities` | TEXT[] | Nao | '{}' | Atividades preferidas (onboarding step 3) |
+| `wellness_goals` | TEXT[] | Nao | '{}' | Objetivos de bem-estar (onboarding step 2) |
+| `availability_periods` | TEXT[] | Nao | '{}' | Periodos de disponibilidade (onboarding step 4) |
+| `public_badges` | TEXT[] | Nao | '{}' | Badges de conquistas |
+| `score_confidence` | VARCHAR(10) | Nao | 'low' | Confianca do score: low / medium / high |
+| `source` | VARCHAR(20) | Nao | 'manual' | Origem: manual / health_connect / healthkit / mixed |
+| `is_visible` | BOOLEAN | Nao | true | Visibilidade para outros usuarios |
+| `onboarding_completed` | BOOLEAN | Nao | false | Onboarding multi-step concluido |
+| `created_at` | TIMESTAMPTZ | Nao | NOW() | Data de criacao |
+| `updated_at` | TIMESTAMPTZ | Nao | NOW() | Ultima atualizacao |
+
+**Indices:**
+- `idx_public_wellness_profile_visible` ON is_visible WHERE is_visible = true
+- `idx_public_wellness_profile_onboarding` ON onboarding_completed WHERE onboarding_completed = true
+
+---
+
+### blocks
+
+> Bloqueio de usuario. Quando ativo, matches sao marcados como 'blocked'.
+
+**Tabela:** `blocks`
+**Servico:** backend/modules/moderation
+
+| Campo | Tipo SQL | Nullable | Default | Descricao |
+|-------|----------|----------|---------|-----------|
+| `id` | UUID | Nao | gen_random_uuid() | Identificador |
+| `blocker_id` | UUID | Nao | — | FK para users (quem bloqueou) |
+| `blocked_id` | UUID | Nao | — | FK para users (quem foi bloqueado) |
+| `reason` | TEXT | Sim | NULL | Motivo do bloqueio |
+| `created_at` | TIMESTAMPTZ | Nao | NOW() | Data |
+
+**Constraints:** UNIQUE(blocker_id, blocked_id)
+
+---
+
+### reports
+
+> Denuncia de usuario para moderacao.
+
+**Tabela:** `reports`
+**Servico:** backend/modules/moderation
+
+| Campo | Tipo SQL | Nullable | Default | Descricao |
+|-------|----------|----------|---------|-----------|
+| `id` | UUID | Nao | gen_random_uuid() | Identificador |
+| `reporter_id` | UUID | Nao | — | FK para users (quem denunciou) |
+| `reported_id` | UUID | Nao | — | FK para users (quem foi denunciado) |
+| `reason` | VARCHAR(50) | Nao | — | inappropriate_content / harassment / fake_profile / underage / spam / offline_behavior / other |
+| `description` | TEXT | Sim | NULL | Descricao detalhada |
+| `match_id` | UUID | Sim | NULL | FK para matches (opcional) |
+| `status` | VARCHAR(20) | Nao | 'pending' | pending / reviewed / dismissed / action_taken |
+| `created_at` | TIMESTAMPTZ | Nao | NOW() | Data |
+
+---
+
+### moderation_actions
+
+> Acao tomada pela moderacao contra um usuario.
+
+**Tabela:** `moderation_actions`
+**Servico:** backend/modules/moderation
+
+| Campo | Tipo SQL | Nullable | Default | Descricao |
+|-------|----------|----------|---------|-----------|
+| `id` | UUID | Nao | gen_random_uuid() | Identificador |
+| `target_user_id` | UUID | Nao | — | FK para users |
+| `action_type` | VARCHAR(30) | Nao | — | warning / temporary_ban / permanent_ban / content_removed |
+| `reason` | TEXT | Sim | NULL | Justificativa |
+| `report_id` | UUID | Sim | NULL | FK para reports |
+| `expires_at` | TIMESTAMPTZ | Sim | NULL | Data de expiracao (para bans temporarios) |
+| `created_at` | TIMESTAMPTZ | Nao | NOW() | Data |
+
+---
+
+### audit_events
+
+> Registro de auditoria para eventos importantes do sistema. Implementa rastreabilidade para conformidade LGPD e operacional.
+> Toda criacao, modificacao ou exclusao de dados sensiveis passa por este registro.
+
+**Tabela:** `audit_events`
+**Servico:** backend/modules/audit
+
+| Campo | Tipo SQL | Nullable | Default | Descricao |
+|-------|----------|----------|---------|-----------|
+| `id` | UUID | Nao | gen_random_uuid() | Identificador unico |
+| `user_id` | UUID | Sim | NULL | FK para users (pode ser null para eventos anonimos) |
+| `event_type` | VARCHAR(50) | Nao | — | Tipo do evento (ver enum AuditEventType) |
+| `resource_type` | VARCHAR(50) | Sim | NULL | Tipo do recurso afetado (user, match, report, etc.) |
+| `resource_id` | UUID | Sim | NULL | ID do recurso afetado |
+| `metadata` | JSONB | Sim | NULL | Metadados adicionais do evento |
+| `ip_address` | VARCHAR(45) | Sim | NULL | Endereco IP de origem |
+| `created_at` | TIMESTAMPTZ | Nao | NOW() | Data do evento |
+
+**Indices:**
+- `idx_audit_events_user_id` ON user_id
+- `idx_audit_events_event_type` ON event_type
+
+**AuditEventType (enum):**
+
+| Valor | Descricao |
+|-------|-----------|
+| `user_registered` | Novo cadastro |
+| `login_success` | Login bem-sucedido |
+| `login_failed` | Tentativa de login falha |
+| `onboarding_completed` | Onboarding concluido |
+| `public_profile_updated` | Perfil publico atualizado |
+| `consent_granted` | Consentimento concedido |
+| `consent_revoked` | Consentimento revogado |
+| `privacy_export_requested` | Exportacao de dados solicitada |
+| `health_data_deleted` | Dados de saude removidos |
+| `account_deleted` | Conta excluida |
+| `user_blocked` | Usuario bloqueado |
+| `user_unblocked` | Usuario desbloqueado |
+| `user_reported` | Usuario denunciado |
+| `moderation_action_taken` | Acao de moderacao aplicada |
+| `match_created` | Match bilateral criado |
+| `message_sent` | Mensagem enviada |
+| `message_read` | Mensagem lida |
+| `retention_cleanup_executed` | Limpeza de retencao executada |
+
+---
+
 ### challenge_progress
 
 > Progresso individual de cada participante em um desafio.
@@ -415,17 +580,17 @@ erDiagram
 ## Entidades: Surak
 
 > Surak e stateless. Nao possui banco de dados proprio.
-> Os resultados de validacao sao retornados ao schizoid-match e persistidos la.
+> Os resultados de validacao sao retornados ao wellmatch e persistidos la.
 
 ---
 
-### exam_validation_results (persistida no schizoid-match)
+### exam_validation_results (persistida no wellmatch)
 
 > Resultado final da validacao de exame de sangue pelo Surak.
 > Valores brutos nunca chegam aqui — apenas bandas derivadas com score de confianca.
 
-**Tabela:** `exam_validation_results` (a criar no schizoid-match)
-**Servico:** schizoid-match, populada pelo Surak via HTTP
+**Tabela:** `exam_validation_results` (a criar no wellmatch)
+**Servico:** wellmatch, populada pelo Surak via HTTP
 
 | Campo | Tipo SQL | Nullable | Descricao |
 |-------|----------|----------|-----------|
@@ -440,12 +605,12 @@ erDiagram
 
 ---
 
-### exam_markers (persistida no schizoid-match)
+### exam_markers (persistida no wellmatch)
 
 > Marcadores individuais extraidos e validados do exame.
 
-**Tabela:** `exam_markers` (a criar no schizoid-match)
-**Servico:** schizoid-match, populada pelo Surak
+**Tabela:** `exam_markers` (a criar no wellmatch)
+**Servico:** wellmatch, populada pelo Surak
 
 | Campo | Tipo SQL | Nullable | Descricao |
 |-------|----------|----------|-----------|
@@ -526,6 +691,12 @@ Usado em: `exam_markers.band`
 | `idx_chat_messages_match` | `chat_messages` | `match_id, timestamp DESC` | Timeline de chat por match |
 | `idx_consent_records_user` | `consent_records` | `user_id, metric_type` | Verificacao de consentimento |
 | `idx_users_email` | `users` | `email` WHERE `is_deleted = FALSE` | Login por email em usuarios ativos |
+| `idx_public_wellness_profile_visible` | `public_wellness_profile` | `is_visible` WHERE TRUE | Filtro de candidatos visiveis |
+| `idx_public_wellness_profile_onboarding` | `public_wellness_profile` | `onboarding_completed` WHERE TRUE | Filtro de usuarios prontos para match |
+| `idx_blocks_blocker` | `blocks` | `blocker_id` | Listagem de bloqueios |
+| `idx_reports_reported` | `reports` | `reported_id` | Consulta de denuncias por alvo |
+| `idx_reports_status` | `reports` | `status` | Filtro de denuncias pendentes |
+| `idx_moderation_actions_target` | `moderation_actions` | `target_user_id` | Historico de acoes por usuario |
 
 ---
 
@@ -574,10 +745,63 @@ Usado em: `exam_markers.band`
 |-------|---------|
 | **Status** | Aceita |
 | **Data** | 2026-05-08 |
-| **Contexto** | O microsservico de validacao de exames nao deve ter acesso direto ao banco do schizoid-match |
-| **Decisao** | Surak processa em memoria e retorna o resultado via HTTP; persistencia e responsabilidade do schizoid-match |
+| **Contexto** | O microsservico de validacao de exames nao deve ter acesso direto ao banco do wellmatch |
+| **Decisao** | Surak processa em memoria e retorna o resultado via HTTP; persistencia e responsabilidade do wellmatch |
 | **Alternativas consideradas** | Banco proprio no Surak com replica — rejeitado por complexidade desnecessaria no MVP |
-| **Consequencias** | Valores brutos de exames nunca tocam o disco; rastreabilidade fica centralizada no schizoid-match |
+| **Consequencias** | Valores brutos de exames nunca tocam o disco; rastreabilidade fica centralizada no wellmatch |
+
+### ADR-DM-004 — PublicWellnessProfile como novo perfil de matching
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-04 |
+| **Contexto** | Dados brutos de saude (heart_rate, hrv, vo2max) eram necessarios para o core do produto, criando barreira de entrada (smartwatch obrigatorio) e risco de privacidade |
+| **Decisao** | Novo perfil baseado apenas em bandas semanticas e preferencias declaradas. Smartwatch opcional. Onboarding multi-step obrigatorio |
+| **Alternativas consideradas** | Manter public_health_profile com menos campos — rejeitado porque ainda dependeria de dados brutos |
+| **Consequencias** | Usuario pode usar o app sem smartwatch; dados de saude tornam-se complemento opcional |
+
+### ADR-DM-005 — Consentimento com purpose e versionamento
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-04 |
+| **Contexto** | Consentimento granular sem finalidade clara nao atendia requisitos LGPD completos |
+| **Decisao** | Campos purpose, consent_version e metadata adicionados ao consent_records |
+| **Consequencias** | Revogacao tem efeito real no perfil publico; versionamento permite rastrear politica vigente |
+
+### ADR-DM-006 — Tabelas de moderacao separadas
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-04 |
+| **Contexto** | Bloqueio e denuncia precisavam de persistencia propria (antes eram listas em memoria apenas) |
+| **Decisao** | Tres tabelas separadas: blocks, reports, moderation_actions |
+| **Consequencias** | Bloqueio persiste e afeta matches existentes; denuncias tem ciclo de vida auditavel |
+
+### ADR-DM-007 — Role-based access control
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-04 |
+| **Contexto** | Moderadores e administradores precisavam de endpoints exclusivos (moderation actions, visao de todas as denuncias) sem expor acesso irrestrito a dados de outros usuarios |
+| **Decisao** | Campo `role` na tabela `users` com valores `user / moderator / admin`. JWT inclui `role` no payload. RolesGuard verifica `@Roles('admin')` decorator nos endpoints restritos |
+| **Alternativas consideradas** | Tabela separada de permissoes — rejeitado por complexidade excessiva para o MVP; roles inline atendem ao cenario atual |
+| **Consequencias** | Moderadores podem ver todas as denuncias e aplicar acoes; admins tem acesso a endpoints de auditoria e configuracao. Role e validada em cada requisicao protegida |
+
+### ADR-DM-008 — AuditModule com registro centralizado de eventos
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-04 |
+| **Contexto** | Eventos importantes (login, bloqueio, denuncia, exclusao) nao tinham rastreabilidade; conformidade LGPD exige registro auditavel de operacoes com dados pessoais |
+| **Decisao** | Tabela `audit_events` separada, alimentada por `AuditService` injetado nos modulos de negocio. Eventos principais de Auth, Onboarding, Health, Matching, Chat, Moderation e Privacy sao registrados |
+| **Alternativas consideradas** | Logs estruturados apenas (sem tabela) — rejeitado por falta de consulta estruturada; Trigger no banco — rejeitado por acoplamento a tecnologia de banco |
+| **Consequencias** | Rastreabilidade completa de operacoes sensiveis; possibilidade de auditoria futura por dashboard |
 
 ### ADR-DM-003 — Expiracao de marcadores de exame em 6 meses
 

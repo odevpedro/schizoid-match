@@ -1,15 +1,15 @@
 # Backlog — WellMatch
 
 > Registro vivo do progresso do projeto. Atualizado a cada mudanca de estado de uma funcionalidade.
-> **Ultima atualizacao:** 2026-05-08
+> **Ultima atualizacao:** 2026-07-04
 
 ---
 
 ## Sobre o Projeto
 
-Plataforma de match social baseada em dados de saude derivados de smartwatch, conectando pessoas por objetivos de bem-estar, estilo de vida e rotina — sem expor dados medicos sensiveis.
+Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas saudaveis, caminhadas, treinos e companhia — sem expor dados sensiveis de saude.
 
-**Versao atual:** `0.1.0-MVP`
+**Versao atual:** `0.3.0`
 **Stack principal:** React Native + NestJS + PostgreSQL + TimescaleDB + Redis
 
 ---
@@ -29,109 +29,191 @@ Plataforma de match social baseada em dados de saude derivados de smartwatch, co
 
 ---
 
-## Em Andamento
-
-> Nenhum item em andamento no momento.
-
----
-
 ## Concluidas
 
 ### MVP — v0.1.0 (2026-05-07)
 
-- `[x]` P0 / L — Estrutura do projeto (backend NestJS + mobile React Native)
-- `[x]` P0 / M — Schema SQL com TimescaleDB (init.sql)
-- `[x]` P0 / M — Docker Compose para ambiente local
-- `[x]` P0 / L — Autenticacao JWT (registro, login, guards)
-- `[x]` P0 / M — Entidades TypeORM (users, preferences, health, match, chat)
-- `[x]` P0 / XL — Camada HealthProvider (interface + SimulatedProvider + Factory)
-- `[x]` P0 / L — Ingestao de metricas com verificacao de consentimento
-- `[x]` P0 / M — HealthProfileProcessor (metricas brutas → bandas derivadas)
-- `[x]` P1 / L — CompatibilityCalculator (score ponderado 7 dimensoes)
-- `[x]` P1 / L — Sistema de swipe (like/dislike/super_like + rate limiting)
-- `[x]` P1 / M — Criacao automatica de match bilateral
-- `[x]` P1 / L — Chat via WebSocket (Socket.IO Gateway)
-- `[x]` P1 / M — Chat REST fallback + sugestoes wellness
-- `[x]` P1 / L — Desafios em dupla (CRUD basico)
-- `[x]` P1 / L — Privacidade e LGPD (export, delete health data, delete account)
-- `[x]` P1 / L — Consentimento granular por metrica (grant/revoke)
-- `[x]` P0 / XL — Telas mobile: Login, Register, Match (swipe), Mensagens, Chat
-- `[x]` P0 / L — Telas mobile: Perfil, Privacidade, Conexao de Smartwatch
-- `[x]` P1 / L — Componentes: WellnessCard (swipe animado), CompatibilityBar, WellnessBadges
-- `[x]` P1 / M — Navegacao por 4 abas (Perfil, Match, Desafios, Mensagens)
-- `[x]` P2 / M — Documentacao: README, backlog, architecture.md, system-feature-flows.md
+- `[x]` Estrutura do projeto (backend NestJS + mobile React Native)
+- `[x]` Schema SQL com TimescaleDB (init.sql)
+- `[x]` Docker Compose para ambiente local
+- `[x]` Autenticacao JWT (registro, login, guards)
+- `[x]` Entidades TypeORM (users, preferences, health, match, chat)
+- `[x]` Camada HealthProvider (interface + SimulatedProvider + Factory)
+- `[x]` Ingestao de metricas com verificacao de consentimento
+- `[x]` HealthProfileProcessor (metricas brutas → bandas derivadas)
+- `[x]` CompatibilityCalculator (score ponderado)
+- `[x]` Sistema de swipe (like/dislike/super_like + rate limiting)
+- `[x]` Criacao automatica de match bilateral
+- `[x]` Chat via WebSocket (Socket.IO Gateway)
+- `[x]` Chat REST fallback + sugestoes wellness
+- `[x]` Desafios em dupla (CRUD basico)
+- `[x]` Privacidade e LGPD (export, delete health data, delete account)
+- `[x]` Consentimento granular por metrica (grant/revoke)
+- `[x]` Telas mobile: Login, Register, Match, Mensagens, Chat, Perfil, Privacidade
+- `[x]` Componentes: WellnessCard, CompatibilityBar, WellnessBadges
 
-### Correcoes e Infraestrutura Web — v0.1.1 (2026-05-08)
+### v0.1.1 (2026-05-08)
 
-- `[x]` P0 / XS — Fix: `#root` sem `display: flex` causava tela em branco no browser
-- `[x]` P0 / XS — Fix: `__DEV__` indefinido no Vite (adicionado em `define` no vite.config.ts)
-- `[x]` P1 / S  — Fix: aba Match nao responsiva — `Dimensions.get` estatico substituido por `useWindowDimensions`
-- `[x]` P1 / M  — Feature: modo demo com login ficticio (`demo@wellmatch.app` / `demo123`) sem dependencia de backend
-- `[x]` P1 / L  — Feature: camada de mock data cobrindo todas as telas (perfil, match, mensagens, desafios, privacidade)
+- `[x]` Fix: `#root` sem `display: flex` causava tela em branco
+- `[x]` Fix: `__DEV__` indefinido no Vite
+- `[x]` Fix: aba Match nao responsiva
+- `[x]` Feature: modo demo com login ficticio
+- `[x]` Feature: camada de mock data
+
+### v0.2.0 — Reposicionamento, Onboarding, Moderacao, Seguranca (2026-07-04)
+
+**Limpeza e reposicionamento:**
+- `[x]` Remover toda referencia a "Schizoid-Match" do codigo e docs
+- `[x]` Remover "Tinder do bem-estar" do posicionamento do produto
+**Novo modelo de perfil seguro (PublicWellnessProfile):**
+- `[x]` Entidade PublicWellnessProfile com campos semanticos seguros
+- `[x]` DTOs de onboarding multi-step (7 passos)
+- `[x]` OnboardingService com validacao de ordem e estado
+- `[x]` Endpoints REST para cada step + status
+**Privacidade e consentimento expandido:**
+- `[x]` ConsentRecord com purpose, consent_version, metadata
+- `[x]` Revogacao de consentimento remove campos publicos (score_confidence → low)
+- `[x]` HealthService.handleConsentRevocation — efeito real no perfil
+- `[x]` PrivacyService.deleteAccount — cascata completa
+
+**Matching seguro:**
+- `[x]` Calculator retorna Confidence + Reasons (sem fallback 50)
+- `[x]` Rate limit de swipe diario (corrigido B002)
+- `[x]` Swipe com transacao no banco (corrigido race condition)
+- `[x]` MatchingService usa PublicWellnessProfile
+
+**Seguranca social:**
+- `[x]` Block entity (bloqueio com desfazimento)
+- `[x]` Report entity (denuncia com motivo e status)
+- `[x]` ModerationAction entity (advertencia, ban, remocao)
+- `[x]` Bloqueio desativa matches ativos
+**Chat seguro:**
+- `[x]` ChatMessage.readAt com timestamp
+- `[x]` WebSocket validateMatchAccess em join:match e message:send
+- `[x]` Limite de mensagens diarias (200)
+- `[x]` Sugestoes com hash melhorado (corrigido B003)
+
+**Operacao:**
+- `[x]` SQL migrations versionadas (002-005)
+- `[x]` Migration runner script (run-migrations.sh)
+- `[x]` Testes unitarios: auth, matching, chat, privacy, moderation (19 testes)
+- `[x]` init.sql atualizado com novas tabelas e colunas
+
+**Telas de onboarding mobile:**
+- `[x]` Telas de onboarding mobile (Intro, Intent, Goals, Activities, Availability) — scrollable, progress indicator, dark theme, loading/error states
+
+**Telas de perfil e match:**
+- `[x]` ProfileScreen refatorada: exibe `PublicWellnessProfile` com campos semanticos, labels em portugues, tags/chips para arrays, estados loading/error/empty, navegacao para privacidade/smartwatch/exportar dados/excluir conta
+- `[x]` MatchScreen: botoes de denuncia (navega para ReportUser) e bloqueio (BlockUserButton inline) abaixo do card stack, estilo ghost/secondary compacto
+
+### v0.3.0 — Audit, Roles, Onboarding Mobile Completo, Integracao (2026-07-04)
+
+**Role-based access control:**
+- `[x]` User entity com campo `role` ('user' | 'moderator' | 'admin')
+- `[x]` JWT payload inclui `role`
+- `[x]` RolesGuard (`src/modules/auth/guards/roles.guard.ts`)
+- `[x]` Roles decorator (`src/common/decorators/roles.decorator.ts`)
+- `[x]` Migration 006 com coluna `role` e tabela `audit_events`
+
+**AuditModule:**
+- `[x]` AuditEvent entity com auditoria completa
+- `[x]` AuditService para registro de eventos
+- `[x]` Integracao com: AuthService, OnboardingService, HealthService, MatchingService, ChatService, ModerationService, PrivacyService
+- `[x]` LoggingInterceptor para logs estruturados request/response
+
+**Saude operacional:**
+- `[x]` HealthCheckController com `GET /health` e `GET /ready`
+- `[x]` LoggingInterceptor para logs estruturados
+- `[x]` PrivacyRetentionService com cron diario (03:00) para limpeza
+- `[x]` `@nestjs/schedule` adicionado
+
+**Rate limit corrigido:**
+- `[x]` Correcao B002 definitiva: swipe conta `createdAt >= todayStart` com `MoreThanOrEqual`
+
+**Perfil e matching:**
+- `[x]` Endpoint `GET /users/me/wellness-profile`
+- `[x]` Candidatos incluem `displayName`, `ageRange`, `approximateRegion`
+- `[x]` WellnessCard atualizado com displayName, ageRange, confidence badge, source badge
+
+**Onboarding mobile completo (9 telas):**
+- `[x]` OnboardingNavigator com todas as 9 telas
+- `[x]` AppNavigator exibe onboarding apos login se nao completado
+- `[x]` auth.store.ts com `onboardingCompleted` state e `checkOnboardingStatus()`
+- `[x]` Telas: IntroScreen, IntentScreen, GoalsScreen, ActivitiesScreen, AvailabilityScreen, IntensityScreen, PrivacyScreen, SourceScreen, CompletedScreen
+- `[x]` onboarding.service.ts para chamadas de API mobile
+
+**Moderacao mobile:**
+- `[x]` BlockUserButton component (confirmacao Alert)
+- `[x]` ReportUserScreen (selecao de motivo + descricao)
+- `[x]` BlockedUsersScreen (lista com desbloqueio)
+- `[x]` moderation.service.ts para chamadas de API mobile
+- `[x]` MainNavigator inclui ReportUser e BlockedUsers no ProfileStack
+
+**Infra:**
+- `[x]` Migration 006: `user_role_and_audit.sql`
+- `[x]` init.sql atualizado com `role` e `audit_events`
+- `[x]` Testes de integracao com banco real (`test/integration/wellmatch.integration.spec.ts`)
+
+**Documentacao:**
+- `[x]` README.md, backlog.md, data-model.md, security.md, system-feature-flows.md atualizados
 
 ---
 
 ## Pendentes
 
-### Integracao Real com Smartwatches — P0
+### Smartwatch Integration — P1
 
-- `[ ]` P0 / XL — HealthKit provider (iOS)
-- `[ ]` P0 / XL — Health Connect provider (Android)
-- `[ ]` P1 / XL — Garmin Connect API
-- `[ ]` P1 / XL — Fitbit API
-- `[ ]` P2 / L  — Samsung Health SDK
-
-### Onboarding Completo — P1
-
-- `[ ]` P1 / M — Tela de onboarding multi-step (objetivos, atividades, privacidade)
-- `[ ]` P1 / S — Logica de redirecionamento pos-registro para onboarding
-- `[ ]` P2 / M — Calculo e publicacao de public_health_profile pos-ingestao
+- `[ ]` HealthKit provider (iOS)
+- `[ ]` Health Connect provider (Android)
+- `[ ]` Garmin Connect API
+- `[ ]` Fitbit API
 
 ### Perfil e Match — P1
 
-- `[ ]` P1 / M — Upload de foto de perfil (revelada so apos match)
-- `[ ]` P1 / L — Filtros de match (distancia real via geolocation, cronotype)
-- `[ ]` P2 / M — Desfazer match (unmatch)
-- `[ ]` P2 / S — Bloquear usuario
+- `[ ]` Upload de foto de perfil (revelada so apos match)
+- `[ ]` Filtros de match (distancia real via geolocation)
+- `[ ]` Desfazer match (unmatch)
 
 ### Desafios — P2
 
-- `[ ]` P2 / L  — Progresso automatico de desafio via metricas do dia
-- `[ ]` P2 / M  — Notificacoes de desafio concluido
-- `[ ]` P3 / M  — Historico de desafios completados
+- `[ ]` Progresso automatico de desafio via metricas do dia
+- `[ ]` Notificacoes de desafio concluido
+- `[ ]` Historico de desafios completados
 
 ### Infraestrutura — P1
 
-- `[ ]` P1 / M — Testes de integracao (auth, match, health)
-- `[ ]` P1 / L — CI/CD com GitHub Actions
-- `[ ]` P1 / M — Migracao TypeORM (substituir synchronize: true)
-- `[ ]` P2 / M — Observabilidade (logs estruturados, health check endpoint)
-- `[ ]` P2 / L — Deploy em ambiente de producao (Railway, Render ou VPS)
+- `[x]` Testes de integracao (auth, match, health)
+- `[x]` Observabilidade (logs estruturados com LoggingInterceptor)
+- `[ ]` CI/CD com GitHub Actions
+- `[ ]` Migracao TypeORM automatizada (rodar migrations na inicializacao)
+- `[ ]` Deploy em producao (Railway, Render ou VPS)
 
 ### Machine Learning — P3
 
-- `[ ]` P3 / XL — Modelo de compatibilidade baseado em embeddings de perfil
-- `[ ]` P3 / XL — Recomendacao personalizada por comportamento de swipe
+- `[ ]` Modelo de compatibilidade baseado em embeddings de perfil
+- `[ ]` Recomendacao personalizada por comportamento de swipe
 
 ---
 
 ## Bugs Conhecidos
 
-| ID | Descricao | Severidade | Reportado em |
-|----|-----------|------------|--------------|
-| B001 | `public_health_profile` nao e populado automaticamente apos ingestao | Alta | 2026-05-07 |
-| B002 | Rate limit de swipes usa contagem total, nao diaria | Media | 2026-05-07 |
-| B003 | Sugestoes de chat sao deterministicas (sem variacao real) | Baixa | 2026-05-07 |
-| B004 | Backend nunca iniciado — docker-compose e variaveis de ambiente nao validados em ambiente real | Alta | 2026-05-08 |
+| ID | Descricao | Severidade | Status |
+|----|-----------|------------|--------|
+| B001 | public_health_profile nao populado (substituido por PublicWellnessProfile) | Resolvido | `[x]` |
+| B002 | Rate limit de swipes usava contagem total, nao diaria | Resolvido | `[x]` |
+| B003 | Sugestoes de chat deterministicas por charCodeAt(0) | Resolvido | `[x]` |
+| B004 | Variaveis de ambiente nao validadas | Media | Aberto |
 
 ---
 
-## Decisoes Tecnicas Pendentes
+## Decisoes Tecnicas
 
-- Definir estrategia de geolocation: coordenadas aproximadas ou apenas regiao textual?
-- Avaliar Supabase Auth como alternativa ao JWT proprio para facilitar OAuth social
-- Definir politica de retencao de `health_metrics_raw` (LGPD exige prazo definido)
-- Avaliar Expo vs React Native CLI para build mais facil no MVP
+- Geolocation: regiao textual no MVP, coordenadas postergado para v0.3.0
+- Auth: JWT proprio (sem Supabase Auth) para controle total
+- Retencao health_metrics_raw: 90 dias apos ultima coleta
+- Expo: mantido para facilidade de build no MVP
+- Dados brutos de saude removidos do core do produto (apenas bandas semanticas)
+- Usuario pode usar o app sem smartwatch (questionario manual)
 
 ---
 
@@ -139,5 +221,7 @@ Plataforma de match social baseada em dados de saude derivados de smartwatch, co
 
 | Versao | Data | Principais entregas |
 |--------|------|---------------------|
-| `0.1.0` | 2026-05-07 | MVP completo: backend NestJS, mobile React Native, infra Docker, documentacao |
-| `0.1.1` | 2026-05-08 | Correcoes web (tela branca, __DEV__, responsividade Match), modo demo com mock data |
+| `0.1.0` | 2026-05-07 | MVP completo: backend NestJS, mobile React Native, infra Docker |
+| `0.1.1` | 2026-05-08 | Correcoes web, modo demo, mock data |
+| `0.2.0` | 2026-07-04 | Onboarding, moderacao, perfil seguro, matching transactional, docs |
+| `0.3.0` | 2026-07-04 | Audit, roles, healthcheck, logs estruturados, retencao, onboarding mobile completo, testes de integracao |
