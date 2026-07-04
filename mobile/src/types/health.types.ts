@@ -14,6 +14,8 @@ export interface ConsentRecord {
   userId: string;
   metricType: HealthMetricType;
   permissionStatus: 'granted' | 'revoked' | 'pending';
+  purpose?: string;
+  consentVersion?: string;
   grantedAt?: string;
   revokedAt?: string;
   sourceProvider: string;

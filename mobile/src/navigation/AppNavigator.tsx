@@ -3,12 +3,13 @@ import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../store/auth.slice';
 import { AuthNavigator } from './AuthNavigator';
 import { MainNavigator } from './MainNavigator';
+import { OnboardingNavigator } from './OnboardingNavigator';
 import { View, ActivityIndicator } from 'react-native';
 import { colors } from '../theme/colors';
 import { socketService } from '../services/socket.service';
 
 export const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading, restoreSession } = useAuthStore();
+  const { isAuthenticated, isLoading, onboardingCompleted, restoreSession, checkOnboardingStatus } = useAuthStore();
 
   useEffect(() => {
     restoreSession();
@@ -17,6 +18,7 @@ export const AppNavigator: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) {
       socketService.connect();
+      if (!onboardingCompleted) checkOnboardingStatus();
     } else {
       socketService.disconnect();
     }
@@ -32,7 +34,9 @@ export const AppNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+      {!isAuthenticated && <AuthNavigator />}
+      {isAuthenticated && !onboardingCompleted && <OnboardingNavigator />}
+      {isAuthenticated && onboardingCompleted && <MainNavigator />}
     </NavigationContainer>
   );
 };

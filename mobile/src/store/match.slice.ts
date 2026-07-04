@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { PublicHealthProfile, Match } from '../types/match.types';
+import { MatchCandidate, Match } from '../types/match.types';
 
 interface MatchState {
-  candidates: PublicHealthProfile[];
+  candidates: MatchCandidate[];
   matches: Match[];
   currentIndex: number;
-  setCandidates: (candidates: PublicHealthProfile[]) => void;
+  setCandidates: (candidates: MatchCandidate[]) => void;
   setMatches: (matches: Match[]) => void;
   removeTopCandidate: () => void;
   addMatch: (match: Match) => void;

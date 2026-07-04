@@ -47,7 +47,7 @@ export const WatchConnectionScreen: React.FC<{ navigation: any }> = ({ navigatio
         return;
       }
 
-      await healthService.grantConsent(metrics, selected);
+      await healthService.grantConsent(metrics, selected, 'matching_compatibility');
       await healthService.ingestMetrics(selected);
       Alert.alert('Conectado!', 'Seus dados foram importados com sucesso.', [
         { text: 'Continuar', onPress: () => navigation.navigate('Main') },
