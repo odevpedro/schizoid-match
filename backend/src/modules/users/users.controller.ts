@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { AvatarDto } from './dto/avatar.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OnboardingService } from './onboarding.service';
 import { PublicWellnessProfile } from '../matching/entities/public-wellness-profile.entity';
@@ -96,6 +97,13 @@ export class UsersController {
       ageRange: user?.birthdate ? calculateAgeRange(user.birthdate) : undefined,
       approximateRegion: user?.locationRegion || undefined,
     };
+  }
+
+  @Post('me/avatar')
+  @ApiOperation({ summary: 'Update current user avatar' })
+  async updateAvatar(@Request() req, @Body() dto: AvatarDto) {
+    await this.usersService.updateAvatar(req.user.id, dto.avatarUrl);
+    return { message: 'Avatar updated successfully' };
   }
 
   @Get('onboarding/status')
