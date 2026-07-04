@@ -1,0 +1,5 @@
+ALTER TABLE consent_records
+  ADD COLUMN IF NOT EXISTS purpose VARCHAR(50) DEFAULT 'matching_compatibility',
+  ADD COLUMN IF NOT EXISTS consent_version VARCHAR(10) DEFAULT 'v1',
+  ADD COLUMN IF NOT EXISTS metadata JSONB,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
