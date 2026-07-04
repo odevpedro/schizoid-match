@@ -13,15 +13,25 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Post('consent/grant')
-  @ApiOperation({ summary: 'Grant consent for specific health metrics' })
+  @ApiOperation({ summary: 'Grant consent for specific health metrics with purpose' })
   async grantConsent(@Request() req, @Body() dto: GrantConsentDto) {
-    return this.healthService.grantConsent(req.user.id, dto);
+    const results = await Promise.all(
+      dto.metricTypes.map((metricType) =>
+        this.healthService.grantConsent(req.user.id, metricType, dto.purpose, dto.sourceProvider, dto.consentVersion),
+      ),
+    );
+    return results;
   }
 
   @Post('consent/revoke')
-  @ApiOperation({ summary: 'Revoke consent for specific health metrics' })
+  @ApiOperation({ summary: 'Revoke consent and remove associated public profile data' })
   async revokeConsent(@Request() req, @Body() dto: RevokeConsentDto) {
-    return this.healthService.revokeConsent(req.user.id, dto);
+    await Promise.all(
+      dto.metricTypes.map((metricType) =>
+        this.healthService.revokeConsent(req.user.id, metricType),
+      ),
+    );
+    return { success: true };
   }
 
   @Get('consent')

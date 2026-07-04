@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { PublicHealthProfile } from '../entities/public-health-profile.entity';
+import { PublicWellnessProfile } from '../entities/public-wellness-profile.entity';
 import { UserPreferences } from '../../users/entities/user-preferences.entity';
 
-interface CompatibilityBreakdown {
+interface DimensionScore {
+  dimension: string;
+  score: number;
+  weight: number;
+  reason: string;
+}
+
+export interface CompatibilityResult {
   total: number;
-  goals: number;
-  activities: number;
-  chronotype: number;
-  intensity: number;
-  availability: number;
-  distance: number;
-  consistency: number;
+  confidence: 'low' | 'medium' | 'high';
+  reasons: string[];
+  dimensions: DimensionScore[];
 }
 
 const WEIGHTS = {
@@ -18,39 +21,51 @@ const WEIGHTS = {
   activities: 0.20,
   chronotype: 0.15,
   intensity: 0.15,
-  availability: 0.10,
-  distance: 0.10,
-  consistency: 0.05,
+  availability: 0.15,
+  consistency: 0.10,
 };
 
 @Injectable()
 export class CompatibilityCalculator {
   calculate(
-    profile1: PublicHealthProfile,
+    profile1: PublicWellnessProfile,
     prefs1: UserPreferences,
-    profile2: PublicHealthProfile,
+    profile2: PublicWellnessProfile,
     prefs2: UserPreferences,
-    distanceKm?: number,
-  ): CompatibilityBreakdown {
+  ): CompatibilityResult {
+    const dimensions: DimensionScore[] = [];
+
     const goals = this.scoreGoals(prefs1.wellnessGoals, prefs2.wellnessGoals);
-    const activities = this.scoreActivities(prefs1.preferredActivities, prefs2.preferredActivities);
-    const chronotype = this.scoreChronotype(profile1.chronotype, profile2.chronotype);
-    const intensity = this.scoreIntensity(prefs1.preferredIntensity, prefs2.preferredIntensity);
-    const availability = this.scoreAvailability(prefs1.availabilityPeriods, prefs2.availabilityPeriods);
-    const distance = this.scoreDistance(distanceKm, Math.min(prefs1.maxDistanceKm, prefs2.maxDistanceKm));
-    const consistency = this.scoreConsistency(profile1.activityLevel, profile2.activityLevel);
+    dimensions.push({ dimension: 'goals', score: goals, weight: WEIGHTS.goals, reason: goals >= 70 ? 'Wellness goals align well' : goals >= 40 ? 'Some common wellness goals' : 'Different wellness goals' });
+
+    const activities = this.scoreActivities(profile1.preferredActivities, profile2.preferredActivities);
+    dimensions.push({ dimension: 'activities', score: activities, weight: WEIGHTS.activities, reason: activities >= 70 ? 'Share preferred activities' : activities >= 40 ? 'Some overlapping activities' : 'Different activity preferences' });
+
+    const chronotype = this.scoreChronotype(profile1.chronotypeBand, profile2.chronotypeBand);
+    dimensions.push({ dimension: 'chronotype', score: chronotype, weight: WEIGHTS.chronotype, reason: chronotype >= 80 ? 'Similar daily energy rhythms' : chronotype >= 50 ? 'Compatible energy patterns' : 'Different chronotypes' });
+
+    const intensity = this.scoreIntensity(profile1.intensityPreference, profile2.intensityPreference);
+    dimensions.push({ dimension: 'intensity', score: intensity, weight: WEIGHTS.intensity, reason: intensity >= 70 ? 'Match on workout intensity preference' : intensity >= 40 ? 'Compatible intensity range' : 'Different intensity expectations' });
+
+    const availability = this.scoreAvailability(profile1.availabilityPeriods, profile2.availabilityPeriods);
+    dimensions.push({ dimension: 'availability', score: availability, weight: WEIGHTS.availability, reason: availability >= 70 ? 'Availability overlaps well' : availability >= 40 ? 'Some overlapping availability' : 'Different available times' });
+
+    const consistency = this.scoreConsistency(profile1.activityConsistencyBand, profile2.activityConsistencyBand);
+    dimensions.push({ dimension: 'consistency', score: consistency, weight: WEIGHTS.consistency, reason: consistency >= 70 ? 'Similar consistency in habits' : consistency >= 40 ? 'Compatible habit consistency' : 'Different habit consistency levels' });
 
     const total = Math.round(
-      goals * WEIGHTS.goals +
-      activities * WEIGHTS.activities +
-      chronotype * WEIGHTS.chronotype +
-      intensity * WEIGHTS.intensity +
-      availability * WEIGHTS.availability +
-      distance * WEIGHTS.distance +
-      consistency * WEIGHTS.consistency,
+      dimensions.reduce((acc, d) => acc + d.score * d.weight, 0),
     );
 
-    return { total, goals, activities, chronotype, intensity, availability, distance, consistency };
+    const filledProfileFields = [profile1.activityLevel, profile1.chronotypeBand, profile1.sleepRoutineBand, profile1.preferredActivities?.length, profile1.wellnessGoals?.length].filter(Boolean).length;
+    const confidence: 'low' | 'medium' | 'high' = filledProfileFields >= 4 ? 'high' : filledProfileFields >= 2 ? 'medium' : 'low';
+
+    const reasons = dimensions
+      .filter((d) => d.score >= 60)
+      .slice(0, 3)
+      .map((d) => d.reason);
+
+    return { total, confidence, reasons, dimensions };
   }
 
   private scoreGoals(goals1: string[], goals2: string[]): number {
@@ -69,7 +84,7 @@ export class CompatibilityCalculator {
 
   private scoreChronotype(c1: string, c2: string): number {
     if (!c1 || !c2) return 50;
-    const order = ['early_bird', 'morning', 'intermediate', 'afternoon', 'night_owl'];
+    const order = ['early', 'morning', 'flexible', 'evening', 'night'];
     const i1 = order.indexOf(c1);
     const i2 = order.indexOf(c2);
     if (i1 === -1 || i2 === -1) return 50;
@@ -79,7 +94,7 @@ export class CompatibilityCalculator {
   }
 
   private scoreIntensity(i1: string, i2: string): number {
-    const order = ['low', 'moderate', 'high', 'very_high'];
+    const order = ['low', 'moderate', 'flexible', 'high'];
     const idx1 = order.indexOf(i1);
     const idx2 = order.indexOf(i2);
     if (idx1 === -1 || idx2 === -1) return 50;
@@ -94,18 +109,12 @@ export class CompatibilityCalculator {
     return Math.round((intersection.length / union) * 100);
   }
 
-  private scoreDistance(distanceKm?: number, maxKm = 50): number {
-    if (distanceKm == null) return 70;
-    if (distanceKm > maxKm) return 0;
-    return Math.round((1 - distanceKm / maxKm) * 100);
-  }
-
-  private scoreConsistency(level1: string, level2: string): number {
-    const order = ['sedentary', 'lightly_active', 'moderately_active', 'active', 'very_active'];
-    const i1 = order.indexOf(level1);
-    const i2 = order.indexOf(level2);
+  private scoreConsistency(c1: string, c2: string): number {
+    const order = ['low', 'medium', 'high'];
+    const i1 = order.indexOf(c1);
+    const i2 = order.indexOf(c2);
     if (i1 === -1 || i2 === -1) return 50;
     const diff = Math.abs(i1 - i2);
-    return [100, 75, 50, 25, 0][diff] ?? 0;
+    return [100, 60, 20][diff] ?? 0;
   }
 }

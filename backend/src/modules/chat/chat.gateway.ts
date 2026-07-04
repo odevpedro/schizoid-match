@@ -7,14 +7,13 @@ import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
-import { SendMessageDto } from './dto/send-message.dto';
 
 @WebSocketGateway({ cors: { origin: '*' }, namespace: '/chat' })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  private connectedUsers = new Map<string, string>(); // socketId -> userId
+  private connectedUsers = new Map<string, string>();
 
   constructor(
     private readonly chatService: ChatService,
@@ -29,9 +28,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const payload = this.jwtService.verify(token, {
-        secret: process.env.JWT_SECRET || 'wellmatch-dev-secret',
-      });
+      const payload = this.jwtService.verify(token);
 
       this.connectedUsers.set(client.id, payload.sub);
       client.join(`user:${payload.sub}`);
@@ -50,23 +47,45 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     const userId = this.connectedUsers.get(client.id);
-    if (!userId) return;
+    if (!userId) return { error: 'Not authenticated' };
+
+    const hasAccess = await this.chatService.validateMatchAccess(data.matchId, userId);
+    if (!hasAccess) {
+      return { error: 'Access denied' };
+    }
+
     client.join(`match:${data.matchId}`);
+    return { success: true };
   }
 
   @SubscribeMessage('message:send')
   async handleMessage(
-    @MessageBody() dto: SendMessageDto,
+    @MessageBody() data: { matchId: string; message: string },
     @ConnectedSocket() client: Socket,
   ) {
     const userId = this.connectedUsers.get(client.id);
-    if (!userId) return;
+    if (!userId) return { error: 'Not authenticated' };
 
-    const message = await this.chatService.sendMessage(userId, dto);
+    if (!data.message?.trim()) return { error: 'Message cannot be empty' };
+    if (data.message.length > 2000) return { error: 'Message too long' };
 
-    this.server.to(`match:${dto.matchId}`).emit('message:received', message);
+    const message = await this.chatService.sendMessage(userId, { matchId: data.matchId, message: data.message });
+
+    this.server.to(`match:${data.matchId}`).emit('message:received', message);
 
     return message;
+  }
+
+  @SubscribeMessage('message:read')
+  async handleRead(
+    @MessageBody() data: { matchId: string; messageId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userId = this.connectedUsers.get(client.id);
+    if (!userId) return { error: 'Not authenticated' };
+
+    const result = await this.chatService.markAsRead(data.messageId, userId, data.matchId);
+    return result;
   }
 
   notifyMatch(userId1: string, userId2: string, matchId: string) {

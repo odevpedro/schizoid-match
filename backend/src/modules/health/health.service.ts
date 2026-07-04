@@ -1,101 +1,125 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HealthMetricsRaw } from './entities/health-metrics-raw.entity';
 import { HealthProfileDaily } from './entities/health-profile-daily.entity';
 import { ConsentRecord } from './entities/consent-record.entity';
-import { HealthProviderFactory } from './providers/health-provider.factory';
-import { HealthProfileProcessor } from './processors/health-profile.processor';
+import { PublicWellnessProfile } from '../matching/entities/public-wellness-profile.entity';
 import { IngestMetricsDto } from './dto/ingest-metrics.dto';
-import { GrantConsentDto, RevokeConsentDto } from './dto/consent.dto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class HealthService {
+  private readonly logger = new Logger(HealthService.name);
+
   constructor(
     @InjectRepository(HealthMetricsRaw)
     private readonly rawRepo: Repository<HealthMetricsRaw>,
     @InjectRepository(HealthProfileDaily)
-    private readonly profileRepo: Repository<HealthProfileDaily>,
+    private readonly dailyRepo: Repository<HealthProfileDaily>,
     @InjectRepository(ConsentRecord)
     private readonly consentRepo: Repository<ConsentRecord>,
-    private readonly providerFactory: HealthProviderFactory,
-    private readonly processor: HealthProfileProcessor,
+    @InjectRepository(PublicWellnessProfile)
+    private readonly wellnessRepo: Repository<PublicWellnessProfile>,
+    private readonly auditService: AuditService,
   ) {}
 
-  async grantConsent(userId: string, dto: GrantConsentDto): Promise<ConsentRecord[]> {
-    const records = dto.metricTypes.map((metricType) =>
-      this.consentRepo.create({
-        userId,
-        metricType,
-        permissionStatus: 'granted',
-        grantedAt: new Date(),
-        sourceProvider: dto.sourceProvider,
-      }),
-    );
-    return this.consentRepo.save(records);
+  async exportUserData(userId: string) {
+    const [rawMetrics, dailyProfiles, consents] = await Promise.all([
+      this.rawRepo.find({ where: { userId } }),
+      this.dailyRepo.find({ where: { userId } }),
+      this.consentRepo.find({ where: { userId } }),
+    ]);
+
+    return { rawMetrics, dailyProfiles, consents };
   }
 
-  async revokeConsent(userId: string, dto: RevokeConsentDto): Promise<void> {
-    for (const metricType of dto.metricTypes) {
-      await this.consentRepo.update(
-        { userId, metricType, permissionStatus: 'granted' },
-        { permissionStatus: 'revoked', revokedAt: new Date() },
-      );
-    }
+  async deleteRawData(userId: string): Promise<void> {
+    await this.rawRepo.delete({ userId });
+    await this.dailyRepo.delete({ userId });
+    await this.consentRepo.delete({ userId });
   }
 
   async getConsents(userId: string): Promise<ConsentRecord[]> {
     return this.consentRepo.find({ where: { userId } });
   }
 
-  async ingestMetrics(userId: string, dto: IngestMetricsDto): Promise<{ imported: number }> {
-    const provider = this.providerFactory.getProvider(dto.provider);
-
-    const from = dto.fromDate ? new Date(dto.fromDate) : new Date(Date.now() - 7 * 86400000);
-    const to = dto.toDate ? new Date(dto.toDate) : new Date();
-
-    const grantedConsents = await this.consentRepo.find({
-      where: { userId, permissionStatus: 'granted', sourceProvider: dto.provider },
+  async grantConsent(
+    userId: string,
+    metricType: string,
+    purpose: string,
+    sourceProvider: string,
+    consentVersion?: string,
+  ): Promise<ConsentRecord> {
+    const existing = await this.consentRepo.findOne({
+      where: { userId, metricType, purpose },
     });
-
-    if (!grantedConsents.length) {
-      throw new ForbiddenException('No consent granted for this provider. Grant consent first.');
+    if (existing) {
+      existing.permissionStatus = 'granted';
+      existing.grantedAt = new Date();
+      existing.sourceProvider = sourceProvider;
+      existing.consentVersion = consentVersion ?? 'v1';
+      const saved = await this.consentRepo.save(existing);
+      await this.auditService.record({ userId, eventType: 'consent_granted', resourceType: 'consent', resourceId: saved.id, metadata: { metricType, purpose } });
+      return saved;
     }
+    const saved = await this.consentRepo.save({
+      userId,
+      metricType,
+      permissionStatus: 'granted',
+      purpose,
+      consentVersion: consentVersion ?? 'v1',
+      grantedAt: new Date(),
+      sourceProvider,
+    });
+    await this.auditService.record({ userId, eventType: 'consent_granted', resourceType: 'consent', resourceId: saved.id, metadata: { metricType, purpose } });
+    return saved;
+  }
 
-    const rawMetrics = await provider.fetchMetrics(userId, from, to);
-
-    const entities = rawMetrics.map((m) =>
-      this.rawRepo.create({ ...m, userId }),
+  async revokeConsent(userId: string, metricType: string): Promise<void> {
+    await this.consentRepo.update(
+      { userId, metricType, permissionStatus: 'granted' },
+      { permissionStatus: 'revoked', revokedAt: new Date() },
     );
 
-    await this.rawRepo.save(entities);
-
-    const profiles = this.processor.processMetrics(userId, rawMetrics);
-    for (const profile of profiles) {
-      await this.profileRepo.upsert(profile as HealthProfileDaily, ['userId', 'date']);
-    }
-
-    return { imported: entities.length };
+    await this.handleConsentRevocation(userId, [metricType]);
+    await this.auditService.record({ userId, eventType: 'consent_revoked', metadata: { metricType } });
   }
 
-  async getDerivedProfile(userId: string): Promise<HealthProfileDaily[]> {
-    return this.profileRepo.find({
+  async handleConsentRevocation(userId: string, metricTypes: string[]): Promise<void> {
+    const profile = await this.wellnessRepo.findOne({ where: { userId } });
+    if (!profile) return;
+
+    const metricToField: Record<string, string> = {
+      steps: 'activity_level',
+      sleep: 'sleep_routine_band',
+      activity: 'activity_consistency_band',
+      heart_rate: 'score_confidence',
+      hrv: 'score_confidence',
+      vo2max: 'score_confidence',
+    };
+
+    const fieldsToNullify = metricTypes
+      .map((m) => metricToField[m])
+      .filter(Boolean);
+
+    if (fieldsToNullify.length > 0) {
+      const updateData: Record<string, null | string> = {};
+      fieldsToNullify.forEach((f) => { updateData[f] = null; });
+      updateData.score_confidence = 'low';
+      await this.wellnessRepo.update({ userId }, updateData as any);
+    }
+  }
+
+  async ingestMetrics(userId: string, dto: IngestMetricsDto): Promise<any> {
+    this.logger.log(`Ingesting metrics from provider ${dto.provider} for user ${userId}`);
+    return { ingested: 0, message: 'Direct metric push not supported; use provider sync' };
+  }
+
+  async getDerivedProfile(userId: string): Promise<any> {
+    return this.dailyRepo.findOne({
       where: { userId },
       order: { date: 'DESC' },
-      take: 30,
     });
-  }
-
-  async deleteRawData(userId: string): Promise<void> {
-    await this.rawRepo.delete({ userId });
-    await this.profileRepo.delete({ userId });
-  }
-
-  async exportUserData(userId: string) {
-    const [consents, profiles] = await Promise.all([
-      this.consentRepo.find({ where: { userId } }),
-      this.profileRepo.find({ where: { userId }, order: { date: 'DESC' } }),
-    ]);
-    return { consents, derivedProfiles: profiles };
   }
 }

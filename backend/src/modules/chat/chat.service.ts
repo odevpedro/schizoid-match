@@ -1,10 +1,12 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatMessage } from './entities/chat-message.entity';
 import { Match } from '../matching/entities/match.entity';
 import { SendMessageDto } from './dto/send-message.dto';
+import { AuditService } from '../audit/audit.service';
 
+const DAILY_MESSAGE_LIMIT = parseInt(process.env.DAILY_MESSAGE_LIMIT || '200');
 const WELLNESS_SUGGESTIONS = [
   'Voces dois tem rotina matinal. Que tal combinar uma caminhada?',
   'Voces compartilham o objetivo de melhorar o condicionamento fisico.',
@@ -12,6 +14,10 @@ const WELLNESS_SUGGESTIONS = [
   'Ambos preferem atividades de intensidade moderada. Que tal um treino juntos?',
   'Voces dois valorizam uma boa noite de sono. Que tal criar um desafio de sono?',
   'Voces compartilham interesse em atividades ao ar livre.',
+  'Que tal marcar uma sessao de alongamento juntos?',
+  'Experimentem uma caminhada em um parque novo esse fim de semana.',
+  'Combinem de preparar uma refeicao saudavel juntos.',
+  'Que tal um desafio de 7 dias de meditacao?',
 ];
 
 @Injectable()
@@ -21,9 +27,18 @@ export class ChatService {
     private readonly messageRepo: Repository<ChatMessage>,
     @InjectRepository(Match)
     private readonly matchRepo: Repository<Match>,
+    private readonly auditService: AuditService,
   ) {}
 
-  private async validateMatchAccess(matchId: string, userId: string): Promise<Match> {
+  async validateMatchAccess(matchId: string, userId: string): Promise<boolean> {
+    const match = await this.matchRepo.findOne({ where: { id: matchId } });
+    if (!match) return false;
+    if (match.userId1 !== userId && match.userId2 !== userId) return false;
+    if (match.status !== 'active') return false;
+    return true;
+  }
+
+  private async ensureMatchAccess(matchId: string, userId: string): Promise<Match> {
     const match = await this.matchRepo.findOne({ where: { id: matchId } });
     if (!match) throw new NotFoundException('Match not found');
     if (match.userId1 !== userId && match.userId2 !== userId) {
@@ -36,7 +51,17 @@ export class ChatService {
   }
 
   async sendMessage(userId: string, dto: SendMessageDto): Promise<ChatMessage> {
-    await this.validateMatchAccess(dto.matchId, userId);
+    await this.ensureMatchAccess(dto.matchId, userId);
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayCount = await this.messageRepo.count({
+      where: { senderId: userId },
+    });
+    if (todayCount >= DAILY_MESSAGE_LIMIT) {
+      throw new BadRequestException(`Daily message limit of ${DAILY_MESSAGE_LIMIT} reached`);
+    }
 
     const message = this.messageRepo.create({
       matchId: dto.matchId,
@@ -44,11 +69,13 @@ export class ChatService {
       message: dto.message,
     });
 
-    return this.messageRepo.save(message);
+    const saved = await this.messageRepo.save(message);
+    await this.auditService.record({ userId, eventType: 'message_sent', resourceType: 'message', resourceId: saved.id, metadata: { matchId: dto.matchId } });
+    return saved;
   }
 
   async getMessages(userId: string, matchId: string, limit = 50, offset = 0): Promise<ChatMessage[]> {
-    await this.validateMatchAccess(matchId, userId);
+    await this.ensureMatchAccess(matchId, userId);
 
     const messages = await this.messageRepo.find({
       where: { matchId },
@@ -58,12 +85,23 @@ export class ChatService {
       relations: ['sender'],
     });
 
+    const now = new Date();
     await this.messageRepo.update(
-      { matchId, isRead: false },
-      { isRead: true },
+      { matchId, isRead: false, senderId: userId },
+      { isRead: true, readAt: now },
     );
 
     return messages.reverse();
+  }
+
+  async markAsRead(messageId: string, userId: string, matchId: string): Promise<{ success: boolean }> {
+    const msg = await this.messageRepo.findOne({ where: { id: messageId, matchId } });
+    if (!msg) return { success: false };
+    if (msg.senderId === userId) return { success: true };
+
+    await this.messageRepo.update({ id: messageId }, { isRead: true, readAt: new Date() });
+    await this.auditService.record({ userId, eventType: 'message_read', resourceType: 'message', resourceId: messageId, metadata: { matchId } });
+    return { success: true };
   }
 
   async getConversations(userId: string) {
@@ -94,7 +132,22 @@ export class ChatService {
   }
 
   getWellnessSuggestions(matchId: string): string[] {
-    const idx = matchId.charCodeAt(0) % WELLNESS_SUGGESTIONS.length;
-    return WELLNESS_SUGGESTIONS.slice(idx, idx + 2).concat(WELLNESS_SUGGESTIONS.slice(0, Math.max(0, 2 - (WELLNESS_SUGGESTIONS.length - idx))));
+    const hash = this.simpleHash(matchId);
+    const count = Math.min(3, WELLNESS_SUGGESTIONS.length);
+    const result: string[] = [];
+    for (let i = 0; i < count; i++) {
+      result.push(WELLNESS_SUGGESTIONS[(hash + i * 7) % WELLNESS_SUGGESTIONS.length]);
+    }
+    return result;
+  }
+
+  private simpleHash(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return Math.abs(hash);
   }
 }

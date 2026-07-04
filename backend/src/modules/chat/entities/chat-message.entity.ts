@@ -30,6 +30,9 @@ export class ChatMessage {
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
 
+  @Column({ name: 'read_at', type: 'timestamptz', nullable: true })
+  readAt: Date;
+
   @CreateDateColumn({ name: 'timestamp' })
   timestamp: Date;
 }

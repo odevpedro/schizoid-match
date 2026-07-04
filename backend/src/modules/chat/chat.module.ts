@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
@@ -10,8 +11,12 @@ import { Match } from '../matching/entities/match.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([ChatMessage, Match]),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'wellmatch-dev-secret',
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET') || 'wellmatch-dev-secret',
+      }),
     }),
   ],
   providers: [ChatService, ChatGateway],
