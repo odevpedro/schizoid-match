@@ -75,7 +75,7 @@ export class ChatService {
   }
 
   async getMessages(userId: string, matchId: string, limit = 50, offset = 0): Promise<ChatMessage[]> {
-    await this.ensureMatchAccess(matchId, userId);
+    const match = await this.ensureMatchAccess(matchId, userId);
 
     const messages = await this.messageRepo.find({
       where: { matchId },
@@ -87,7 +87,7 @@ export class ChatService {
 
     const now = new Date();
     await this.messageRepo.update(
-      { matchId, isRead: false, senderId: userId },
+      { matchId, isRead: false, senderId: match.userId1 === userId ? match.userId2 : match.userId1 },
       { isRead: true, readAt: now },
     );
 

@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Not, In, MoreThanOrEqual } from 'typeorm';
+import { Repository, DataSource, In, MoreThanOrEqual } from 'typeorm';
 import { Match } from './entities/match.entity';
 import { SwipeHistory } from './entities/swipe-history.entity';
 import { PublicWellnessProfile } from './entities/public-wellness-profile.entity';
@@ -9,7 +9,10 @@ import { CompatibilityResult } from './compatibility/compatibility.calculator';
 import { SwipeDto } from './dto/swipe.dto';
 import { UserPreferences } from '../users/entities/user-preferences.entity';
 import { User } from '../users/entities/user.entity';
+import { Block } from '../moderation/entities/block.entity';
+import { ChatGateway } from '../chat/chat.gateway';
 import { AuditService } from '../audit/audit.service';
+import { RecommendationService } from './recommendation.service';
 
 const MAX_SWIPES_PER_DAY = parseInt(process.env.MAX_SWIPES_PER_DAY || '50');
 
@@ -29,6 +32,13 @@ export class MatchingService {
     private readonly userRepo: Repository<User>,
     private readonly calculator: CompatibilityCalculator,
     private readonly auditService: AuditService,
+    @Optional()
+    @InjectRepository(Block)
+    private readonly blockRepo?: Repository<Block>,
+    @Optional()
+    private readonly chatGateway?: ChatGateway,
+    @Optional()
+    private readonly recommendationService?: RecommendationService,
   ) {}
 
   async getCandidates(userId: string): Promise<any[]> {
@@ -39,11 +49,29 @@ export class MatchingService {
       .getRawMany()
       .then((rows) => rows.map((r) => r.target_user_id));
 
+    const matchedUsers = await this.matchRepo.find({
+      where: [
+        { userId1: userId, status: 'active' },
+        { userId2: userId, status: 'active' },
+      ],
+    });
+    const matchedUserIds = new Set<string>(
+      matchedUsers.map((m) => (m.userId1 === userId ? m.userId2 : m.userId1)),
+    );
+
+    const blockedIds = this.blockRepo
+      ? await this.blockRepo.find({
+          where: [{ blockerId: userId }, { blockedId: userId }],
+        }).then((rows) => rows.map((block) => (block.blockerId === userId ? block.blockedId : block.blockerId)))
+      : [];
+
+    const excludedIds = Array.from(new Set([...swipedIds, ...blockedIds, ...matchedUserIds]));
+
     const candidates = await this.profileRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.user', 'u')
       .where('p.user_id != :userId', { userId })
-      .andWhere(swipedIds.length ? 'p.user_id NOT IN (:...swipedIds)' : '1=1', { swipedIds })
+      .andWhere(excludedIds.length ? 'p.user_id NOT IN (:...excludedIds)' : '1=1', { excludedIds })
       .andWhere('p.is_visible = true')
       .andWhere('p.onboarding_completed = true')
       .take(20)
@@ -57,17 +85,7 @@ export class MatchingService {
 
     const maxDistanceKm = myPrefs.maxDistanceKm || 50;
 
-    const matchedUsers = await this.matchRepo.find({
-      where: [
-        { userId1: userId, status: 'active' },
-        { userId2: userId, status: 'active' },
-      ],
-    });
-    const matchedUserIds = new Set<string>(
-      matchedUsers.map((m) => (m.userId1 === userId ? m.userId2 : m.userId1)),
-    );
-
-    return candidates
+    const ranked = candidates
       .map((candidate) => {
         const theirPrefs = { wellnessGoals: candidate.wellnessGoals, preferredActivities: candidate.preferredActivities, preferredIntensity: candidate.intensityPreference, availabilityPeriods: candidate.availabilityPeriods, maxDistanceKm: 50, chronotypePreference: candidate.chronotypeBand } as any;
         const compatibility = this.calculator.calculate(myProfile, myPrefs, candidate, theirPrefs);
@@ -92,6 +110,10 @@ export class MatchingService {
       })
       .filter((c) => c.distanceKm === undefined || c.distanceKm <= maxDistanceKm)
       .sort((a, b) => b.compatibility.total - a.compatibility.total);
+
+    return this.recommendationService
+      ? this.recommendationService.getRecommendedOrder(userId, ranked)
+      : ranked;
   }
 
   async swipe(userId: string, dto: SwipeDto): Promise<{ matched: boolean; matchId?: string; compatibility?: CompatibilityResult }> {
@@ -172,11 +194,14 @@ export class MatchingService {
           const saved = await queryRunner.manager.save(match);
           await queryRunner.commitTransaction();
           await this.auditService.record({ userId, eventType: 'match_created', resourceType: 'match', resourceId: saved.id, metadata: { targetUserId: dto.targetUserId, score: scoreCompatibility } });
+          await this.recommendationService?.recordInteraction(userId, dto.targetUserId, dto.direction);
+          this.chatGateway?.notifyMatch(userId, dto.targetUserId, saved.id);
           return { matched: true, matchId: saved.id, compatibility };
         }
       }
 
       await queryRunner.commitTransaction();
+      await this.recommendationService?.recordInteraction(userId, dto.targetUserId, dto.direction);
       return { matched: false };
     } catch (err) {
       await queryRunner.rollbackTransaction();

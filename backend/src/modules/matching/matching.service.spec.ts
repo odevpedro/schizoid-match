@@ -9,6 +9,7 @@ import { CompatibilityCalculator } from './compatibility/compatibility.calculato
 import { UserPreferences } from '../users/entities/user-preferences.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
+import { Block } from '../moderation/entities/block.entity';
 
 describe('MatchingService', () => {
   let service: MatchingService;
@@ -43,6 +44,7 @@ describe('MatchingService', () => {
   const mockProfileRepo = {};
   const mockPrefsRepo = {};
   const mockUserRepo = {};
+  const mockBlockRepo = { find: jest.fn().mockResolvedValue([]) };
 
   const mockAuditService = {
     record: jest.fn().mockResolvedValue(undefined),
@@ -58,6 +60,7 @@ describe('MatchingService', () => {
         { provide: getRepositoryToken(PublicWellnessProfile), useValue: mockProfileRepo },
         { provide: getRepositoryToken(UserPreferences), useValue: mockPrefsRepo },
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
+        { provide: getRepositoryToken(Block), useValue: mockBlockRepo },
         { provide: CompatibilityCalculator, useValue: mockCalculator },
         { provide: AuditService, useValue: mockAuditService },
       ],

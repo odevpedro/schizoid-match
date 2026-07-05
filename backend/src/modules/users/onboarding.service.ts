@@ -21,11 +21,14 @@ export class OnboardingService {
 
   async saveStep1(userId: string, dto: OnboardingStep1Dto): Promise<void> {
     const existing = await this.prefsRepo.findOne({ where: { userId } });
-    if (existing) {
-      await this.prefsRepo.update({ userId }, {});
-      return;
+    if (!existing) {
+      await this.prefsRepo.insert({ userId, wellnessGoals: [] });
     }
-    await this.prefsRepo.insert({ userId, wellnessGoals: [] });
+
+    const profile = await this.wellnessRepo.findOne({ where: { userId } })
+      ?? this.wellnessRepo.create({ userId });
+    profile.mainIntention = dto.mainIntention;
+    await this.wellnessRepo.save(profile);
   }
 
   async saveStep2(userId: string, dto: OnboardingStep2Dto): Promise<void> {
@@ -80,7 +83,7 @@ export class OnboardingService {
     profile.source = dto.source === 'manual' ? 'manual' : 'mixed';
     profile.isVisible = true;
     profile.onboardingCompleted = true;
-    profile.mainIntention = prefs.wellnessGoals?.[0] ?? 'social_connection';
+    profile.mainIntention = profile.mainIntention ?? 'social_connection';
 
     await this.wellnessRepo.save(profile);
     await this.auditService.record({ userId, eventType: 'onboarding_completed', metadata: { source: dto.source, scoreConfidence: profile.scoreConfidence } });

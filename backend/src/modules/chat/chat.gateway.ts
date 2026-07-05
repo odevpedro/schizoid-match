@@ -89,6 +89,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   notifyMatch(userId1: string, userId2: string, matchId: string) {
+    if (!this.server) return;
     this.server.to(`user:${userId1}`).emit('match:new', { matchId });
     this.server.to(`user:${userId2}`).emit('match:new', { matchId });
   }

@@ -51,4 +51,10 @@ export class HealthController {
   async getDerivedProfile(@Request() req) {
     return this.healthService.getDerivedProfile(req.user.id);
   }
+
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Get own aggregated health dashboard data' })
+  async getDashboard(@Request() req) {
+    return this.healthService.getDashboard(req.user.id);
+  }
 }
