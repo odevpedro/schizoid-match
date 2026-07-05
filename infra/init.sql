@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT,
   location_region VARCHAR(255),
   avatar_url VARCHAR(500),
+  latitude DECIMAL(10,7),
+  longitude DECIMAL(10,7),
   role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
   is_deleted BOOLEAN DEFAULT FALSE,
   deleted_at TIMESTAMPTZ,
@@ -171,6 +173,8 @@ CREATE TABLE IF NOT EXISTS challenges (
   start_date DATE,
   end_date DATE,
   status VARCHAR(50) DEFAULT 'active',
+  progress_value DECIMAL,
+  completed_at TIMESTAMP,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -179,10 +183,14 @@ CREATE TABLE IF NOT EXISTS challenge_progress (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   challenge_id UUID NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  current_value INTEGER DEFAULT 0,
-  completed BOOLEAN DEFAULT FALSE,
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(challenge_id, user_id)
+  current_value DECIMAL DEFAULT 0,
+  target_value DECIMAL NOT NULL,
+  unit VARCHAR(50),
+  date DATE NOT NULL,
+  status VARCHAR(20) DEFAULT 'active',
+  completed_at TIMESTAMP,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- blocks
@@ -228,8 +236,10 @@ CREATE INDEX IF NOT EXISTS idx_matches_user2 ON matches(user_id_2);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_match ON chat_messages(match_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_consent_records_user ON consent_records(user_id, metric_type);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_users_latitude_longitude ON users(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_public_wellness_profile_visible ON public_wellness_profile(is_visible) WHERE is_visible = true;
 CREATE INDEX IF NOT EXISTS idx_public_wellness_profile_onboarding ON public_wellness_profile(onboarding_completed) WHERE onboarding_completed = true;
+CREATE INDEX IF NOT EXISTS idx_challenge_progress_challenge_user_date ON challenge_progress(challenge_id, user_id, date);
 CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id);
 CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_id);
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
