@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions,
+  View, Text, StyleSheet, TouchableOpacity,
   Alert, Modal,
 } from 'react-native';
 import { colors } from '../../theme/colors';
@@ -12,9 +12,9 @@ import { BlockUserButton } from '../../components/moderation/BlockUserButton';
 import { useMatchStore } from '../../store/match.slice';
 
 export const MatchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { width: screenWidth } = useWindowDimensions();
   const { candidates, setCandidates, removeTopCandidate } = useMatchStore();
   const [loading, setLoading] = useState(false);
+  const [swiping, setSwiping] = useState(false);
   const [matchModal, setMatchModal] = useState(false);
   const [matchedName, setMatchedName] = useState('');
 
@@ -34,20 +34,29 @@ export const MatchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
   };
 
-  const handleSwipe = async (direction: 'like' | 'dislike') => {
+  const handleSwipe = async (direction: 'like' | 'dislike' | 'super_like') => {
+    if (swiping) return;
     const top = candidates[0];
     if (!top) return;
+    if (!top.userId) {
+      Alert.alert('Erro', 'Perfil inválido: candidato sem identificador.');
+      return;
+    }
 
-    removeTopCandidate();
-
+    setSwiping(true);
     try {
       const result = await matchingService.swipe(top.userId, direction);
+      removeTopCandidate();
       if (result.matched) {
-        setMatchedName(top.displayName);
+        setMatchedName(top.displayName ?? 'Usuário');
         setMatchModal(true);
       }
-    } catch (err) {
-      // Swipe already registered or rate limit
+    } catch (err: any) {
+      console.error('Swipe failed', err);
+      const message = err?.response?.data?.message;
+      Alert.alert('Erro no swipe', Array.isArray(message) ? message.join('\n') : message ?? 'Não foi possível registrar sua escolha.');
+    } finally {
+      setSwiping(false);
     }
   };
 
@@ -86,10 +95,25 @@ export const MatchScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       {candidates.length > 0 && (
         <>
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.dislikeBtn} onPress={() => handleSwipe('dislike')}>
+            <TouchableOpacity
+              style={[styles.dislikeBtn, swiping && styles.actionDisabled]}
+              onPress={() => handleSwipe('dislike')}
+              disabled={swiping}
+            >
               <Text style={styles.actionIcon}>✕</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('like')}>
+            <TouchableOpacity
+              style={[styles.superLikeBtn, swiping && styles.actionDisabled]}
+              onPress={() => handleSwipe('super_like')}
+              disabled={swiping}
+            >
+              <Text style={styles.actionIcon}>★</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.likeBtn, swiping && styles.actionDisabled]}
+              onPress={() => handleSwipe('like')}
+              disabled={swiping}
+            >
               <Text style={styles.actionIcon}>♥</Text>
             </TouchableOpacity>
           </View>
@@ -156,7 +180,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 40,
+    alignItems: 'center',
+    gap: 24,
     paddingBottom: spacing.sm,
     paddingTop: spacing.lg,
   },
@@ -183,6 +208,20 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  superLikeBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  actionDisabled: { opacity: 0.45 },
   actionIcon: { fontSize: 24, color: colors.text },
   moderationRow: {
     flexDirection: 'row',

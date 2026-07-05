@@ -1,24 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { MotionInfoPanel, MotionOnboardingScreen } from '../../components/onboarding/MotionOnboarding';
 import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 
 export const OnboardingIntroScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>WM</Text>
-        </View>
-      </View>
-
-      <Text style={styles.title}>Bem-vindo ao WellMatch</Text>
-      <Text style={styles.subtitle}>
-        O WellMatch conecta você a pessoas com rotinas compatíveis para caminhar, treinar e manter
-        hábitos saudáveis — sem expor seus dados sensíveis de saúde.
-      </Text>
-
+    <MotionOnboardingScreen
+      centered
+      icon="WM"
+      badge="Privacy-first"
+      title="Bem-vindo ao WellMatch"
+      subtitle="Encontre pessoas com rotinas compatíveis para caminhar, treinar e manter hábitos saudáveis sem expor seus dados sensíveis."
+      footer={
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate('OnboardingIntent')}
@@ -26,45 +20,42 @@ export const OnboardingIntroScreen: React.FC<{ navigation: any }> = ({ navigatio
       >
         <Text style={styles.buttonText}>Começar</Text>
       </TouchableOpacity>
-    </ScrollView>
+      }
+    >
+      <View style={styles.highlights}>
+        <MotionInfoPanel tone="success">
+          O perfil público usa categorias seguras: objetivos, disponibilidade e bandas de rotina.
+        </MotionInfoPanel>
+        <View style={styles.promiseRow}>
+          <View style={styles.promiseItem}>
+            <Text style={styles.promiseValue}>0</Text>
+            <Text style={styles.promiseLabel}>dados brutos expostos</Text>
+          </View>
+          <View style={styles.promiseItem}>
+            <Text style={styles.promiseValue}>7</Text>
+            <Text style={styles.promiseLabel}>passos rápidos</Text>
+          </View>
+        </View>
+      </View>
+    </MotionOnboardingScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: {
-    flexGrow: 1,
-    padding: spacing.screen,
+  highlights: { width: '100%', maxWidth: 420 },
+  promiseRow: { flexDirection: 'row', gap: spacing.sm },
+  promiseItem: {
+    flex: 1,
+    minHeight: 86,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: spacing.md,
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  logoContainer: { marginBottom: spacing.xl, alignItems: 'center' },
-  logoCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: colors.primaryDim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  logoText: { fontSize: 28, fontWeight: '800', color: colors.primary, letterSpacing: 1 },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: spacing.xxl,
-    paddingHorizontal: spacing.sm,
-  },
+  promiseValue: { color: colors.primary, fontSize: 26, fontWeight: '800', marginBottom: 2 },
+  promiseLabel: { color: colors.textMuted, fontSize: 12, lineHeight: 16 },
   button: {
     backgroundColor: colors.primary,
     borderRadius: 14,
@@ -74,6 +65,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
     maxWidth: 280,
+    alignSelf: 'center',
   },
   buttonText: { fontSize: 16, fontWeight: '700', color: colors.background },
 });

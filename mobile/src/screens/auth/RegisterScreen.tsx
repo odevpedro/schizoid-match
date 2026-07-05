@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { Button } from '../../components/common/Button';
@@ -12,22 +12,26 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [password, setPassword] = useState('');
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const register = useAuthStore((s) => s.register);
 
   const handleRegister = async () => {
     if (!name || !email || !password) {
-      Alert.alert('Preencha os campos obrigatorios');
+      setError('Preencha nome, email e senha para criar a conta.');
       return;
     }
     if (password.length < 8) {
-      Alert.alert('A senha deve ter pelo menos 8 caracteres');
+      setError('A senha deve ter pelo menos 8 caracteres.');
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       await register({ name, email, password, locationRegion: location });
     } catch (err: any) {
-      Alert.alert('Erro', err?.response?.data?.message ?? 'Erro ao criar conta');
+      console.error('Register failed', err);
+      const message = err?.response?.data?.message;
+      setError(Array.isArray(message) ? message.join('\n') : message ?? 'Erro ao criar conta. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -66,6 +70,8 @@ export const RegisterScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             placeholder="Sao Paulo, SP"
           />
 
+          {error && <Text style={styles.error}>{error}</Text>}
+
           <Button label="Criar conta" onPress={handleRegister} loading={loading} />
           <Button
             label="Ja tenho conta"
@@ -85,5 +91,15 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', color: colors.text, marginBottom: 4 },
   subtitle: { fontSize: 15, color: colors.textMuted, marginBottom: spacing.xl },
   form: { gap: spacing.sm },
+  error: {
+    color: colors.error,
+    fontSize: 13,
+    lineHeight: 18,
+    backgroundColor: 'rgba(239, 68, 68, 0.10)',
+    borderColor: 'rgba(239, 68, 68, 0.28)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: spacing.sm,
+  },
   backButton: { marginTop: spacing.sm },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { Button } from '../../components/common/Button';
@@ -10,18 +10,20 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const login = useAuthStore((s) => s.login);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Preencha todos os campos');
+      setError('Preencha email e senha para entrar.');
       return;
     }
     setLoading(true);
+    setError(null);
     try {
       await login(email, password);
     } catch (err: any) {
-      Alert.alert('Erro', err?.response?.data?.message ?? 'Credenciais invalidas');
+      setError(err?.response?.data?.message ?? 'Credenciais invalidas.');
     } finally {
       setLoading(false);
     }
@@ -55,6 +57,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             placeholder="••••••••"
           />
 
+          {error && <Text style={styles.error}>{error}</Text>}
+
           <Button label="Entrar" onPress={handleLogin} loading={loading} />
 
           <Button
@@ -81,5 +85,15 @@ const styles = StyleSheet.create({
   },
   logoSub: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   form: { gap: spacing.sm },
+  error: {
+    color: colors.error,
+    fontSize: 13,
+    lineHeight: 18,
+    backgroundColor: 'rgba(239, 68, 68, 0.10)',
+    borderColor: 'rgba(239, 68, 68, 0.28)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: spacing.sm,
+  },
   registerButton: { marginTop: spacing.sm },
 });

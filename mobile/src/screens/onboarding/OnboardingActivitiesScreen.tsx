@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Button } from '../../components/common/Button';
+import { MotionOnboardingScreen, MotionOptionCard } from '../../components/onboarding/MotionOnboarding';
 import { onboardingService } from '../../services/onboarding.service';
 
 const OPTIONS = [
@@ -44,94 +44,40 @@ export const OnboardingActivitiesScreen: React.FC<{ navigation: any }> = ({ navi
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.stepIndicator}>Passo 3 de 7</Text>
-      <Text style={styles.title}>Quais atividades você prefere?</Text>
-      <Text style={styles.subtitle}>Escolha uma ou mais atividades</Text>
-
-      <View style={styles.optionsList}>
+    <MotionOnboardingScreen
+      step={3}
+      title="Quais atividades você prefere?"
+      subtitle="Essas escolhas ajudam a mostrar pessoas com rotinas realmente compatíveis."
+      footer={
+        <>
+          {error && <Text style={styles.error}>{error}</Text>}
+          <Button
+            label="Continuar"
+            onPress={handleContinue}
+            disabled={selected.length === 0}
+            loading={loading}
+          />
+        </>
+      }
+    >
+      <>
         {OPTIONS.map((opt) => {
-          const isSelected = selected.includes(opt.value);
           return (
-            <TouchableOpacity
+            <MotionOptionCard
               key={opt.value}
-              style={[styles.card, isSelected && styles.cardSelected]}
+              title={opt.label}
+              selected={selected.includes(opt.value)}
               onPress={() => toggle(opt.value)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                {isSelected && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={[styles.cardLabel, isSelected && styles.cardLabelSelected]}>
-                {opt.label}
-              </Text>
-            </TouchableOpacity>
+              marker="checkbox"
+              delay={80 + OPTIONS.indexOf(opt) * 35}
+            />
           );
         })}
-      </View>
-
-      {error && <Text style={styles.error}>{error}</Text>}
-
-      <Button
-        label="Continuar"
-        onPress={handleContinue}
-        disabled={selected.length === 0}
-        loading={loading}
-      />
-    </ScrollView>
+      </>
+    </MotionOnboardingScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.screen, paddingTop: 60 },
-  stepIndicator: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-    textTransform: 'uppercase',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: spacing.lg,
-  },
-  optionsList: { marginBottom: spacing.xl },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 14,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  cardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryDim,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.textMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
-  checkmark: { fontSize: 14, color: colors.background, fontWeight: '700' },
-  cardLabel: { fontSize: 15, color: colors.text, flex: 1 },
-  cardLabelSelected: { color: colors.primary },
   error: { fontSize: 13, color: colors.error, marginBottom: spacing.md, textAlign: 'center' },
 });

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch } from 'react-native';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
+import { Button } from '../../components/common/Button';
+import { MotionInfoPanel, MotionOnboardingScreen } from '../../components/onboarding/MotionOnboarding';
 import { onboardingService } from '../../services/onboarding.service';
 
 const TOGGLES = [
@@ -17,6 +19,7 @@ export const OnboardingPrivacyScreen: React.FC<{ navigation: any }> = ({ navigat
     shareSleepRoutine: true,
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleSwitch = (key: string) => {
     setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -24,6 +27,7 @@ export const OnboardingPrivacyScreen: React.FC<{ navigation: any }> = ({ navigat
 
   const handleContinue = async () => {
     setLoading(true);
+    setError(null);
     try {
       await onboardingService.saveStep6({
         showPhotosAfterMatch: toggles.showPhotosAfterMatch,
@@ -32,71 +36,65 @@ export const OnboardingPrivacyScreen: React.FC<{ navigation: any }> = ({ navigat
       });
       navigation.navigate('OnboardingSource');
     } catch (err: any) {
-      Alert.alert('Erro', err?.response?.data?.message ?? 'Erro ao salvar');
+      setError(err?.response?.data?.message ?? 'Erro ao salvar. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.stepIndicator}>Passo 6 de 7</Text>
-      <Text style={styles.title}>Configurações de privacidade</Text>
-      <Text style={styles.subtitle}>Controle o que deseja compartilhar no seu perfil público</Text>
-
-      <View style={styles.infoBox}>
-        <Text style={styles.infoBoxText}>
+    <MotionOnboardingScreen
+      step={6}
+      title="Configurações de privacidade"
+      subtitle="Controle o que deseja compartilhar no seu perfil público."
+      footer={
+        <>
+          {error && <Text style={styles.error}>{error}</Text>}
+          <Button label="Continuar" onPress={handleContinue} loading={loading} />
+        </>
+      }
+    >
+      <>
+        <MotionInfoPanel>
           O WellMatch não mostra dados brutos de saúde para outras pessoas. Seu perfil público usa apenas categorias seguras, como rotina, disponibilidade, objetivos e preferências. Você pode alterar essas permissões depois.
-        </Text>
-      </View>
+        </MotionInfoPanel>
 
-      <View style={styles.togglesCard}>
-        {TOGGLES.map((item) => (
-          <View key={item.key} style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>{item.label}</Text>
-            <Switch
-              value={toggles[item.key]}
-              onValueChange={() => toggleSwitch(item.key)}
-              trackColor={{ false: colors.border, true: colors.primaryDim }}
-              thumbColor={toggles[item.key] ? colors.primary : colors.textMuted}
-            />
-          </View>
-        ))}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleContinue}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>{loading ? 'Salvando...' : 'Continuar'}</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={styles.togglesCard}>
+          {TOGGLES.map((item, index) => (
+            <View
+              key={item.key}
+              style={[
+                styles.toggleRow,
+                index === TOGGLES.length - 1 && styles.toggleRowLast,
+              ]}
+            >
+              <View style={styles.toggleCopy}>
+                <Text style={styles.toggleLabel}>{item.label}</Text>
+                <Text style={styles.toggleHint}>
+                  {toggles[item.key] ? 'Visível em categorias seguras' : 'Oculto do perfil público'}
+                </Text>
+              </View>
+              <Switch
+                value={toggles[item.key]}
+                onValueChange={() => toggleSwitch(item.key)}
+                trackColor={{ false: colors.border, true: colors.primaryDim }}
+                thumbColor={toggles[item.key] ? colors.primary : colors.textMuted}
+              />
+            </View>
+          ))}
+        </View>
+      </>
+    </MotionOnboardingScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.screen, paddingTop: 60, paddingBottom: 40 },
-  stepIndicator: { fontSize: 13, fontWeight: '600', color: colors.primary, marginBottom: spacing.xs, letterSpacing: 0.5 },
-  title: { fontSize: 26, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
-  subtitle: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.xl, lineHeight: 20 },
-  infoBox: {
-    backgroundColor: colors.secondaryDim,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-  },
-  infoBoxText: { fontSize: 13, color: colors.textSubtle, lineHeight: 20 },
   togglesCard: {
     backgroundColor: colors.surfaceElevated,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
-    marginBottom: spacing.lg,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -106,14 +104,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  toggleLabel: { fontSize: 14, color: colors.text, flex: 1, marginRight: spacing.md },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { fontSize: 16, fontWeight: '700', color: colors.background },
+  toggleRowLast: { borderBottomWidth: 0 },
+  toggleCopy: { flex: 1, marginRight: spacing.md },
+  toggleLabel: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 3 },
+  toggleHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+  error: { fontSize: 13, color: colors.error, marginBottom: spacing.md, textAlign: 'center' },
 });

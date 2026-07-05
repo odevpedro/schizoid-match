@@ -61,25 +61,29 @@ const Field: React.FC<{ label: string; value?: string | null }> = ({ label, valu
   </View>
 );
 
-const TagsField: React.FC<{ label: string; tags: string[] }> = ({ label, tags }) => (
-  <View style={styles.tagsSection}>
-    <Text style={styles.fieldLabel}>{label}</Text>
-    <View style={styles.tagsRow}>
-      {tags.length > 0
-        ? tags.map((tag, i) => (
-            <View key={i} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ))
-        : <Text style={[styles.fieldValue, styles.fieldEmpty]}>Não informado</Text>
-      }
+const TagsField: React.FC<{ label: string; tags?: string[] | null }> = ({ label, tags }) => {
+  const items = tags ?? [];
+  return (
+    <View style={styles.tagsSection}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.tagsRow}>
+        {items.length > 0
+          ? items.map((tag, i) => (
+              <View key={i} style={styles.tag}>
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))
+          : <Text style={[styles.fieldValue, styles.fieldEmpty]}>Não informado</Text>
+        }
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const setOnboardingCompleted = useAuthStore((s) => s.setOnboardingCompleted);
   const [profile, setProfile] = useState<PublicWellnessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +142,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </Text>
           <TouchableOpacity
             style={styles.startBtn}
-            onPress={() => navigation.navigate('Onboarding')}
+            onPress={() => setOnboardingCompleted(false)}
           >
             <Text style={styles.startBtnText}>Ir para o onboarding</Text>
           </TouchableOpacity>
@@ -192,22 +196,22 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       )}
 
       <View style={styles.menuSection}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HealthDashboard')}>
+          <Text style={styles.menuText}>Meus Dados</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Privacy')}>
           <Text style={styles.menuText}>Privacidade</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Smartwatch')}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('WatchConnection')}>
           <Text style={styles.menuText}>Smartwatch</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('ExportData')}>
-          <Text style={styles.menuText}>Exportar dados</Text>
-          <Text style={styles.menuArrow}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.menuItem, styles.dangerItem]} onPress={() => navigation.navigate('DeleteAccount')}>
+        <TouchableOpacity style={[styles.menuItem, styles.dangerItem]} onPress={() => navigation.navigate('Privacy')}>
           <Text style={styles.dangerText}>Excluir conta</Text>
           <Text style={styles.menuArrow}>›</Text>
         </TouchableOpacity>

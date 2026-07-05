@@ -1,25 +1,30 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator } from 'react-native';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { healthService } from '../../services/health.service';
+import { healthSyncService, SyncStatus } from '../../services/health-sync.service';
+import { getNativeBridge } from '../../services/native-health';
 import { HealthMetricType, HealthProvider } from '../../types/health.types';
 
-const PROVIDERS = [
-  { id: 'simulated' as HealthProvider, name: 'Modo Demonstracao', desc: 'Dados simulados para explorar o app', icon: '🎮', available: true },
-  { id: 'healthkit' as HealthProvider, name: 'Apple Health', desc: 'iOS — HealthKit', icon: '♥', available: false },
-  { id: 'health_connect' as HealthProvider, name: 'Health Connect', desc: 'Android — Health Connect API', icon: '♥', available: false },
-  { id: 'garmin' as HealthProvider, name: 'Garmin', desc: 'Em breve', icon: '⌚', available: false },
-  { id: 'fitbit' as HealthProvider, name: 'Fitbit', desc: 'Em breve', icon: '⌚', available: false },
+const PROVIDERS: { id: HealthProvider; name: string; desc: string; icon: string; checkNative: boolean }[] = [
+  { id: 'simulated', name: 'Modo Simulação', desc: 'Dados gerados automaticamente para teste', icon: '🎮', checkNative: false },
+  { id: 'healthkit', name: 'Apple Health', desc: 'iOS — HealthKit (nativo)', icon: '❤️', checkNative: true },
+  { id: 'health_connect', name: 'Health Connect', desc: 'Android — Health Connect API (nativo)', icon: '📱', checkNative: true },
+  { id: 'garmin', name: 'Garmin Connect', desc: 'API Garmin — dados de relógio Garmin', icon: '⌚', checkNative: false },
+  { id: 'fitbit', name: 'Fitbit', desc: 'API Fitbit — dados de pulseira Fitbit', icon: '⌚', checkNative: false },
 ];
 
-const SAFE_METRICS: { id: HealthMetricType; label: string; sensitive: boolean }[] = [
+const ALL_METRICS: { id: HealthMetricType; label: string; sensitive: boolean }[] = [
   { id: 'steps', label: 'Contagem de Passos', sensitive: false },
   { id: 'sleep', label: 'Dados de Sono', sensitive: false },
   { id: 'calories', label: 'Calorias', sensitive: false },
-  { id: 'heart_rate', label: 'Frequencia Cardiaca (agregada)', sensitive: true },
-  { id: 'hrv', label: 'Variabilidade Cardiaca', sensitive: true },
-  { id: 'stress', label: 'Nivel de Estresse', sensitive: true },
+  { id: 'heart_rate', label: 'Frequência Cardíaca', sensitive: true },
+  { id: 'hrv', label: 'Variabilidade Cardíaca', sensitive: true },
+  { id: 'vo2max', label: 'VO2 Máx', sensitive: true },
+  { id: 'stress', label: 'Nível de Estresse', sensitive: true },
+  { id: 'blood_oxygen', label: 'Oxigenação Sanguínea', sensitive: true },
+  { id: 'skin_temp', label: 'Temperatura Cutânea', sensitive: true },
 ];
 
 export const WatchConnectionScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -28,9 +33,44 @@ export const WatchConnectionScreen: React.FC<{ navigation: any }> = ({ navigatio
     steps: true, sleep: true, calories: true,
   });
   const [loading, setLoading] = useState(false);
+  const [providerAvailable, setProviderAvailable] = useState<Record<string, boolean>>({ simulated: true });
+  const [checkingProvider, setCheckingProvider] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
-  const toggleMetric = (id: HealthMetricType) => {
-    setGrantedMetrics((prev) => ({ ...prev, [id]: !prev[id] }));
+  useEffect(() => {
+    const unsub = healthSyncService.subscribe(setSyncStatus);
+    return unsub;
+  }, []);
+
+  const checkAvailability = async (providerId: HealthProvider) => {
+    if (providerId === 'simulated') {
+      setSelected('simulated');
+      return;
+    }
+    setCheckingProvider(true);
+    try {
+      const bridge = getNativeBridge(providerId);
+      if (bridge) {
+        const avail = await bridge.isAvailable();
+        setProviderAvailable((prev) => ({ ...prev, [providerId]: avail }));
+        if (avail) {
+          setSelected(providerId);
+        } else {
+          Alert.alert(
+            'Dispositivo não encontrado',
+            providerId === 'healthkit'
+              ? 'HealthKit só funciona em dispositivos iOS reais. Use o Modo Simulação para testes.'
+              : 'Health Connect só funciona em dispositivos Android reais. Use o Modo Simulação para testes.'
+          );
+        }
+      } else if (providerId === 'garmin' || providerId === 'fitbit') {
+        setSelected(providerId);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível verificar a disponibilidade.');
+    } finally {
+      setCheckingProvider(false);
+    }
   };
 
   const connect = async () => {
@@ -42,16 +82,22 @@ export const WatchConnectionScreen: React.FC<{ navigation: any }> = ({ navigatio
         .map(([k]) => k)) as HealthMetricType[];
 
       if (metrics.length === 0) {
-        Alert.alert('Selecione pelo menos uma metrica');
+        Alert.alert('Selecione pelo menos uma métrica');
         setLoading(false);
         return;
       }
 
-      await healthService.grantConsent(metrics, selected, 'matching_compatibility');
-      await healthService.ingestMetrics(selected);
-      Alert.alert('Conectado!', 'Seus dados foram importados com sucesso.', [
-        { text: 'Continuar', onPress: () => navigation.navigate('Main') },
-      ]);
+      await healthSyncService.connect(selected, metrics);
+
+      if (selected === 'simulated') {
+        Alert.alert('Conectado!', 'Modo simulação ativo. Dados sendo gerados a cada 2 minutos.', [
+          { text: 'Continuar', onPress: () => navigation.navigate('HealthDashboard') },
+        ]);
+      } else {
+        Alert.alert('Conectado!', `Fonte "${PROVIDERS.find((p) => p.id === selected)?.name}" configurada.`, [
+          { text: 'Continuar', onPress: () => navigation.navigate('HealthDashboard') },
+        ]);
+      }
     } catch (err: any) {
       Alert.alert('Erro', err?.response?.data?.message ?? 'Erro ao conectar');
     } finally {
@@ -59,39 +105,83 @@ export const WatchConnectionScreen: React.FC<{ navigation: any }> = ({ navigatio
     }
   };
 
+  const toggleMetric = (id: HealthMetricType) => {
+    setGrantedMetrics((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const selectAll = () => {
+    const all = ALL_METRICS.reduce((acc, m) => ({ ...acc, [m.id]: true }), {});
+    setGrantedMetrics(all);
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Conectar Smartwatch</Text>
+      <Text style={styles.title}>Conectar Fonte de Dados</Text>
       <Text style={styles.subtitle}>
-        Escolha como importar seus dados de saude. Voce pode revogar permissoes a qualquer momento.
+        Escolha de onde virão seus dados de saúde e bem-estar.
+        Você pode revogar permissões a qualquer momento.
       </Text>
 
       <Text style={styles.sectionLabel}>Fonte de dados</Text>
-      {PROVIDERS.map((p) => (
-        <TouchableOpacity
-          key={p.id}
-          style={[styles.providerCard, selected === p.id && styles.providerSelected, !p.available && styles.providerDisabled]}
-          onPress={() => p.available && setSelected(p.id)}
-          disabled={!p.available}
-        >
-          <Text style={styles.providerIcon}>{p.icon}</Text>
-          <View style={styles.providerInfo}>
-            <Text style={[styles.providerName, !p.available && styles.disabledText]}>{p.name}</Text>
-            <Text style={styles.providerDesc}>{p.desc}</Text>
-          </View>
-          {selected === p.id && <Text style={styles.check}>✓</Text>}
-        </TouchableOpacity>
-      ))}
+      {PROVIDERS.map((p) => {
+        const isSelected = selected === p.id;
+        const isAvail = providerAvailable[p.id] !== false;
+        return (
+          <TouchableOpacity
+            key={p.id}
+            style={[
+              styles.providerCard,
+              isSelected && styles.providerSelected,
+              !isAvail && styles.providerDisabled,
+            ]}
+            onPress={() => checkAvailability(p.id)}
+            disabled={loading || checkingProvider}
+          >
+            <Text style={styles.providerIcon}>{p.icon}</Text>
+            <View style={styles.providerInfo}>
+              <Text style={[styles.providerName, !isAvail && styles.disabledText]}>{p.name}</Text>
+              <Text style={styles.providerDesc}>{p.desc}</Text>
+            </View>
+            {checkingProvider && p.id === selected && (
+              <ActivityIndicator size="small" color={colors.primary} />
+            )}
+            {isSelected && !checkingProvider && <Text style={styles.check}>✓</Text>}
+          </TouchableOpacity>
+        );
+      })}
+
+      {syncStatus && syncStatus.isSyncing && (
+        <View style={styles.syncingBar}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.syncingText}>Sincronizando...</Text>
+        </View>
+      )}
+
+      {syncStatus && syncStatus.lastSyncAt && (
+        <View style={styles.lastSyncBar}>
+          <Text style={styles.lastSyncText}>
+            Última sincronia: {new Date(syncStatus.lastSyncAt).toLocaleTimeString()}
+          </Text>
+          <Text style={styles.lastSyncText}>
+            {syncStatus.metricsCount} métricas importadas
+          </Text>
+        </View>
+      )}
 
       {selected && (
         <>
-          <Text style={[styles.sectionLabel, { marginTop: spacing.lg }]}>Quais dados compartilhar?</Text>
+          <View style={styles.metricsHeader}>
+            <Text style={styles.sectionLabel}>Métricas para compartilhar</Text>
+            <TouchableOpacity onPress={selectAll}>
+              <Text style={styles.selectAllText}>Selecionar todas</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.metricsCard}>
-            {SAFE_METRICS.map((m) => (
+            {ALL_METRICS.map((m) => (
               <View key={m.id} style={styles.metricRow}>
                 <View style={styles.metricInfo}>
                   <Text style={styles.metricLabel}>{m.label}</Text>
-                  {m.sensitive && <Text style={styles.sensitiveTag}>Dado sensivel</Text>}
+                  {m.sensitive && <Text style={styles.sensitiveTag}>Dado sensível</Text>}
                 </View>
                 <Switch
                   value={grantedMetrics[m.id] ?? false}
@@ -104,16 +194,28 @@ export const WatchConnectionScreen: React.FC<{ navigation: any }> = ({ navigatio
           </View>
 
           <TouchableOpacity
-            style={[styles.connectBtn, loading && styles.connectBtnDisabled]}
+            style={[styles.connectBtn, (loading || checkingProvider) && styles.connectBtnDisabled]}
             onPress={connect}
-            disabled={loading}
+            disabled={loading || checkingProvider}
           >
-            <Text style={styles.connectBtnText}>{loading ? 'Conectando...' : 'Conectar e importar'}</Text>
+            {loading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={colors.background} />
+                <Text style={styles.connectBtnText}> Conectando...</Text>
+              </View>
+            ) : (
+              <Text style={styles.connectBtnText}>
+                {selected === 'simulated' ? 'Ativar Simulação' : 'Conectar e sincronizar'}
+              </Text>
+            )}
           </TouchableOpacity>
         </>
       )}
 
-      <TouchableOpacity style={styles.skipBtn} onPress={() => navigation.navigate('Main')}>
+      <TouchableOpacity style={styles.skipBtn} onPress={() => {
+        healthSyncService.stopSync();
+        navigation.goBack();
+      }}>
         <Text style={styles.skipText}>Pular por agora</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -145,6 +247,13 @@ const styles = StyleSheet.create({
   providerDesc: { fontSize: 12, color: colors.textMuted },
   disabledText: { color: colors.textMuted },
   check: { fontSize: 18, color: colors.primary, fontWeight: '700' },
+  metricsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+  },
+  selectAllText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   metricsCard: {
     backgroundColor: colors.surfaceElevated,
     borderRadius: 16,
@@ -174,6 +283,18 @@ const styles = StyleSheet.create({
   },
   connectBtnDisabled: { opacity: 0.6 },
   connectBtnText: { fontSize: 16, fontWeight: '700', color: colors.background },
+  loadingRow: { flexDirection: 'row', alignItems: 'center' },
   skipBtn: { alignItems: 'center', padding: spacing.md },
   skipText: { fontSize: 14, color: colors.textMuted },
+  syncingBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: spacing.sm, marginTop: 4,
+  },
+  syncingText: { fontSize: 12, color: colors.primary },
+  lastSyncBar: {
+    padding: spacing.sm, marginTop: 2,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: 8,
+  },
+  lastSyncText: { fontSize: 11, color: colors.textMuted },
 });
