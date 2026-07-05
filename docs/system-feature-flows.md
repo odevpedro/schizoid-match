@@ -825,3 +825,270 @@ distance = R * c
 - `latitude DECIMAL(10, 7)` — nullable
 - `longitude DECIMAL(10, 7)` — nullable
 - Indice `idx_users_latitude_longitude` em `(latitude, longitude)`
+
+---
+
+## Feature: Photo Upload
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Permite que o usuario envie uma foto de avatar. A foto so e revelada para candidatos apos match bilateral.
+
+### Fluxo
+
+1. `POST /users/me/avatar` com `{ avatarUrl: string }`
+2. `UsersController.updateAvatar()` chama `UsersService.updateAvatar(userId, avatarUrl)`
+3. Salva `avatarUrl` na entidade `User`
+4. Avatar nao e incluido na lista de candidatos antes do match
+5. Apos match, o avatar pode ser recuperado via dados do match
+
+### Regras
+
+| Regra | Descricao |
+|-------|-----------|
+| Visibilidade | Avatar nao aparece em `getCandidates()` — apenas apos match |
+| Formato | Aceito como URL string (upload real requer servico de arquivos externo) |
+
+### Arquivo
+`backend/src/modules/users/dto/avatar.dto.ts`
+
+---
+
+## Feature: Challenge Progress Tracking
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Sistema de progresso individual em desafios com historico de completados e endpoints de progresso.
+
+### Entidade ChallengeProgress
+
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| id | UUID | PK |
+| userId | UUID | FK → users |
+| challengeId | UUID | FK → challenges |
+| progress | DECIMAL(5,2) | Progresso percentual 0-100 |
+| completed | boolean | Se o desafio foi concluido |
+| completedAt | timestamptz | Data de conclusao (nullable) |
+| metadata | JSONB | Dados contextuais do progresso |
+
+### Endpoints
+
+| Metodo | Rota | Acao |
+|--------|------|------|
+| GET | `/challenges/history` | Historico de desafios completados pelo usuario |
+| POST | `/challenges/:id/progress` | Atualiza progresso do usuario no desafio |
+| GET | `/challenges/:id/progress` | Progresso atual do usuario no desafio |
+
+### Service
+
+`ChallengeProgressService`:
+- `updateProgress(userId, challengeId, progress, metadata?)` — upsert com validacao de completude
+- `getProgress(userId, challengeId)` — progresso atual
+- `completeChallenge(userId, challengeId)` — marca como concluido
+- `getHistory(userId)` — historico de desafios completados
+
+### Arquivos
+- `backend/src/modules/challenges/challenge-progress.service.ts`
+- `backend/src/modules/challenges/entities/challenge-progress.entity.ts`
+
+---
+
+## Feature: ML Recommendation Service
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Servico de recomendacao que usa TF-IDF sobre campos do wellness profile e collaborative filtering para reordenar candidatos.
+
+### Arquitetura
+
+```
+RecommendationService
+├── TF-IDF Embeddings sobre campos de texto do wellness profile
+│   (mainIntention, wellnessGoals, preferredActivities, etc.)
+├── Similaridade por cosseno entre embeddings do usuario e candidatos
+└── Collaborative filtering (likes passados do usuario)
+```
+
+### Fluxo
+
+1. `GET /matching/candidates` retorna candidatos (ja filtrados por geolocation)
+2. `RecommendationService.rerank(userId, candidates)` e chamado
+3. Para cada candidato:
+   - Calcula embedding TF-IDF sobre o wellness profile textual
+   - Compara com embedding do usuario (similaridade por cosseno)
+4. Ajusta score com base em likes passados (usuarios similares a quem o usuario ja deu like)
+5. Retorna candidatos reordenados por score composto
+
+### Algoritmo
+
+```
+tfidfScore = cosineSimilarity(embedding_user, embedding_candidate)
+collaborativeScore = media de likes para candidatos com embedding similar
+finalScore = 0.7 * tfidfScore + 0.3 * collaborativeScore
+```
+
+### Arquivos
+- `backend/src/modules/matching/recommendation.service.ts`
+- `backend/src/modules/matching/recommendation.module.ts`
+
+---
+
+## Feature: Provider Sync Mobile (health-sync.service)
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Servico mobile que gera dados biometricos realistas e os envia ao backend via REST. Simula a presenca de um smartwatch para fins de teste e demonstracao.
+
+### Fluxo
+
+1. `healthSyncService.connect(provider, metricTypes)`:
+   - Concede consentimento via `healthService.grantConsent()`
+   - Gera amostras biometricas do dia via `generateDailyMetrics()`
+   - Envia via `POST /health/ingest` com `{ provider, metrics: MetricSample[] }`
+2. Auto-sync a cada 2 minutos via `setInterval`
+3. Cada sincronia gera novas amostras e envia ao backend
+4. `healthSyncService.subscribe(callback)` permite que componentes UI acompanhem status
+
+### MetricSample (DTO)
+
+```typescript
+interface BiometricSample {
+  type: HealthMetricType;   // 'steps' | 'sleep' | 'heart_rate' | etc.
+  value: number;
+  unit: string;             // 'count' | 'minutes' | 'bpm' | etc.
+  timestamp: string;        // ISO 8601
+}
+```
+
+### Backend: Mapeamento para Colunas
+
+O `HealthService.ingestMetrics()` mapeia cada `MetricSample` para a coluna correta no `health_metrics_raw`:
+
+| metricType | Coluna |
+|------------|--------|
+| steps | steps |
+| calories | calories |
+| heart_rate | heartRateBpm |
+| hrv | hrvMs |
+| sleep | sleepMinutes |
+| stress | stressLevel |
+| blood_oxygen | bloodOxygen |
+| skin_temp | skinTemp |
+| vo2max | vo2max |
+
+Amostras do mesmo timestamp sao agrupadas em um unico registro com multiplas colunas preenchidas.
+
+### Arquivos
+- `mobile/src/services/health-sync.service.ts`
+- `mobile/src/services/native-health.ts`
+- `backend/src/modules/health/dto/ingest-metrics.dto.ts` (MetricSample)
+- `backend/src/modules/health/health.service.ts` (mapMetricToColumn)
+
+---
+
+## Feature: Health Dashboard (Mobile)
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida
+
+### Resumo
+Tela de dashboard de saude que exibe metricas do dia (passos, sono, calorias, frequencia cardiaca, HRV, estresse) e resumo semanal com media de passos, sono e dias ativos.
+
+### Layout
+
+- Titulo "Meus Dados" com fonte da sincronia
+- Secao "HOJE" com grade 2x3 de metricas em cards:
+  - Passos (verde primario), Sono (roxo), Calorias (laranja)
+  - Freq. Cardiaca (vermelho), HRV (verde), Estresse (laranja escuro)
+- Secao "RESUMO SEMANAL" com linhas de media
+- Card informativo sobre modo simulacao
+- Pull-to-refresh para recarregar dados
+
+### Fluxo de Dados
+
+1. Ao montar: `healthSyncService.getStatus()` para dados da fonte
+2. Consulta `healthService.getDerivedProfile()` para dados do backend
+3. Exibe dados mockados como fallback se API falhar
+4. Pull-to-refresh recarrega via mesma funcao
+
+### Navegacao
+
+- Acessivel via ProfileScreen → "Meus Dados"
+- Registrado como `HealthDashboard` no ProfileStack do MainNavigator
+
+### Arquivos
+- `mobile/src/screens/health/HealthDashboardScreen.tsx`
+- `mobile/src/types/health.types.ts` (HealthDashboardData, METRIC_UNITS, METRIC_LABELS)
+
+---
+
+## Feature: WatchConnectionScreen (Mobile)
+
+> **Versao:** 2.0.0
+> **Implementada em:** 2026-07-04
+> **Status:** Concluida (atualizada)
+
+### Resumo
+Tela de conexao de smartwatch no onboarding (e reacessivel via Perfil > Smartwatch). Permite selecionar entre 5 provedores, conceder permissoes granulares e iniciar sincronia.
+
+### Provedores Disponiveis
+
+| Provider | Nome | Bridge Nativa | Status |
+|----------|------|---------------|--------|
+| simulated | Modo Simulacao | Nao | Sempre disponivel |
+| healthkit | Apple Health | native-health.ts | Requer iOS real |
+| health_connect | Health Connect | native-health.ts | Requer Android real |
+| garmin | Garmin Connect | Nao | Requer env vars |
+| fitbit | Fitbit Web API | Nao | Requer env vars |
+
+### Fluxo
+
+1. Usuario seleciona um provedor
+2. Se for bridge nativa (healthkit/health_connect):
+   - `getNativeBridge(providerId).isAvailable()` verifica disponibilidade
+   - Se nao disponivel, mostra alerta explicativo
+3. Se provider selecionado com sucesso:
+   - Exibe toggle de metricas com categorizacao sensivel/normal
+   - "Selecionar todas" para habilitar todas as metricas
+4. "Conectar": chama `healthSyncService.connect(provider, metrics)`
+5. Em caso de sucesso: alerta + navega para Main
+6. "Pular por agora": para sincronia e vai para Main
+
+### Status de Sincronia
+
+A tela escuta `healthSyncService.subscribe()` para exibir:
+- Barra de "Sincronizando..." com spinner
+- Ultima sincronia com horario e contagem de metricas
+
+### Metricas
+
+| Metrica | Sensivel | Purpose |
+|---------|----------|---------|
+| Passos | Nao | matching_compatibility |
+| Sono | Nao | matching_compatibility |
+| Calorias | Nao | matching_compatibility |
+| Frequencia Cardiaca | Sim | wellness_badges |
+| HRV | Sim | wellness_badges |
+| VO2 Max | Sim | wellness_badges |
+| Estresse | Sim | wellness_badges |
+| Oxigenacao | Sim | wellness_badges |
+| Temperatura Cutanea | Sim | wellness_badges |
+
+### Arquivos
+- `mobile/src/screens/onboarding/WatchConnectionScreen.tsx`
+- `mobile/src/services/health-sync.service.ts`
+- `mobile/src/services/native-health.ts`

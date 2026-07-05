@@ -1,7 +1,7 @@
 # Data Model — WellMatch
 
 > Documento vivo do modelo de dados. Atualizado sempre que uma entidade for criada, alterada ou removida.
-> **Ultima atualizacao:** 2026-07-04
+> **Ultima atualizacao:** 2026-07-04 (v0.4.0)
 
 ---
 
@@ -566,14 +566,19 @@ erDiagram
 **Tabela:** `challenge_progress`
 **Servico:** backend/modules/challenges
 
-| Campo | Tipo SQL | Nullable | Descricao |
-|-------|----------|----------|-----------|
-| `id` | UUID | Nao | Identificador |
-| `challenge_id` | UUID | Nao | FK para challenges |
-| `user_id` | UUID | Nao | FK para users |
-| `current_value` | INTEGER | Nao | 0 | Valor atual acumulado |
-| `completed` | BOOLEAN | Nao | FALSE | Se atingiu a meta |
-| `updated_at` | TIMESTAMPTZ | Nao | NOW() |
+| Campo | Tipo SQL | Nullable | Default | Descricao |
+|-------|----------|----------|---------|-----------|
+| `id` | UUID | Nao | uuid_generate_v4() | Identificador |
+| `challenge_id` | UUID | Nao | — | FK para challenges |
+| `user_id` | UUID | Nao | — | FK para users |
+| `current_value` | DECIMAL | Nao | 0 | Progresso atual acumulado |
+| `target_value` | DECIMAL | Nao | — | Meta do desafio |
+| `unit` | VARCHAR(50) | Sim | NULL | Unidade do valor (steps, minutes, etc.) |
+| `date` | DATE | Nao | — | Data de referencia do progresso |
+| `status` | VARCHAR(20) | Nao | 'active' | active / completed / expired |
+| `completed_at` | TIMESTAMP | Sim | NULL | Momento da conclusao |
+| `created_at` | TIMESTAMPTZ | Nao | NOW() | Data de criacao |
+| `updated_at` | TIMESTAMPTZ | Nao | NOW() | Ultima atualizacao |
 
 **Constraints:**
 - `UNIQUE(challenge_id, user_id)`
@@ -625,6 +630,21 @@ erDiagram
 | `expires_at` | DATE | Nao | Data de expiracao (collection_date + 6 meses) |
 
 **Nota:** O valor bruto do marcador e processado em memoria pelo Surak e descartado. Nunca persiste no banco.
+
+---
+
+### MetricSample (DTO — v0.4.0)
+
+> DTO para ingestao direta de metricas via `POST /health/ingest`. Usado pelo mobile health-sync.service.
+
+| Campo | Tipo | Descricao |
+|-------|------|-----------|
+| `type` | HealthMetricType | Tipo da metrica (steps, heart_rate, etc.) |
+| `value` | number | Valor numerico |
+| `unit` | string | Unidade (count, bpm, minutes, etc.) |
+| `timestamp` | string (ISO 8601) | Momento da medicao |
+
+**Arquivo:** `backend/src/modules/health/dto/ingest-metrics.dto.ts`
 
 ---
 
@@ -806,6 +826,17 @@ Usado em: `exam_markers.band`
 | **Decisao** | Tabela `audit_events` separada, alimentada por `AuditService` injetado nos modulos de negocio. Eventos principais de Auth, Onboarding, Health, Matching, Chat, Moderation e Privacy sao registrados |
 | **Alternativas consideradas** | Logs estruturados apenas (sem tabela) — rejeitado por falta de consulta estruturada; Trigger no banco — rejeitado por acoplamento a tecnologia de banco |
 | **Consequencias** | Rastreabilidade completa de operacoes sensiveis; possibilidade de auditoria futura por dashboard |
+
+### ADR-DM-009 — MetricSample DTO para ingestao direta
+
+| Campo | Detalhe |
+|-------|---------|
+| **Status** | Aceita |
+| **Data** | 2026-07-04 |
+| **Contexto** | health-sync.service.ts precisa enviar dados biometricos diretamente ao backend sem passar pelo provider OAuth |
+| **Decisao** | `IngestMetricsDto.metrics` aceita array de `MetricSample`. Backend mapeia cada tipo para a coluna correta no `health_metrics_raw` e agrupa amostras do mesmo timestamp em um unico registro |
+| **Alternativas consideradas** | Criar endpoint separado `POST /health/metrics/batch` — rejeitado para manter unico fluxo de ingestao |
+| **Consequencias** | Ingestao direta e via provider compartilham o mesmo endpoint; mapeamento type→column simplifica o processamento |
 
 ### ADR-DM-003 — Expiracao de marcadores de exame em 6 meses
 

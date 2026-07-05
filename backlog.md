@@ -9,7 +9,7 @@
 
 Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas saudaveis, caminhadas, treinos e companhia — sem expor dados sensiveis de saude.
 
-**Versao atual:** `0.3.0`
+**Versao atual:** `0.4.1`
 **Stack principal:** React Native + NestJS + PostgreSQL + TimescaleDB + Redis
 
 ---
@@ -164,9 +164,118 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 **Documentacao:**
 - `[x]` README.md, backlog.md, data-model.md, security.md, system-feature-flows.md atualizados
 
+### v0.4.0 — Geolocation, ML, Desafios CI/CD, Health Dashboard (2026-07-04)
+
+**Geolocation e matching:**
+- `[x]` User entity com latitude/longitude
+- `[x]` Migration 007: `007_geolocation_and_unmatch.sql`
+- `[x]` Haversine distance filter em `getCandidates()`
+- `[x]` `distanceKm` retornado nos candidatos
+- `[x]` Unmatch endpoint: `DELETE /matching/unmatch/:matchId`
+
+**Desafios com progresso:**
+- `[x]` ChallengeProgress entity
+- `[x]` ChallengeProgressService com updateProgress, getProgress, completeChallenge, getHistory
+- `[x]` `GET /challenges/history`, `POST /challenges/:id/progress`, `GET /challenges/:id/progress`
+
+**ML e recomendacao:**
+- `[x]` RecommendationService com TF-IDF embeddings sobre wellness profile
+- `[x]` Reordenacao por similaridade com likes passados
+- `[x]` Collaborative filtering em memoria
+
+**Upload de foto:**
+- `[x]` `POST /users/me/avatar` com AvatarDto
+- `[x]` Avatar nao exposto para candidatos sem match
+
+**Infra:**
+- `[x]` CI/CD com GitHub Actions (.github/workflows/ci.yml)
+- `[x]` Testes de integracao com PostgreSQL service container
+
+**Provider sync mobile:**
+- `[x]` health-sync.service.ts — geracao realista de dados biometricos (steps, sleep, heart_rate, hrv, etc.)
+- `[x]` Auto-sync a cada 2 minutos com subscribe de status
+- `[x]` native-health.ts — bridges nativas HealthKit (iOS) e Health Connect (Android)
+
+**WatchConnectionScreen:**
+- `[x]` Todos os 5 providers selecionaveis (simulated, healthkit, health_connect, garmin, fitbit)
+- `[x]` Provider availability check para bridges nativas
+- `[x]` Fluxo conexao → permissoes → sincronia com status em tempo real
+
+**Health Dashboard:**
+- `[x]` HealthDashboardScreen com metricas do dia e resumo semanal
+- `[x]` METRIC_UNITS, METRIC_LABELS, HealthDashboardData types
+- `[x]` Navegacao do ProfileScreen para HealthDashboard
+- `[x]` Ingestao de metricas via REST aceita MetricSample array com mapeamento para colunas
+
+**Correcoes:**
+- `[x]` B004 resolvido: startup-validator.ts com defaults para PORT, NODE_ENV, CORS_ORIGIN
+- `[x]` AsyncStorage → storage adapter para compatibilidade web
+- `[x]` CORS multi-origin via split(',')
+- `[x]` Consent no frontend envia purpose obrigatorio
+
+### v0.4.1 — Estabilizacao Pos-Varredura (2026-07-04)
+
+**Swipe e matching:**
+- `[x]` MatchScreen nao remove mais o card antes do `POST /matching/swipe` concluir
+- `[x]` Erros de swipe agora aparecem no frontend com `Alert` e `console.error`
+- `[x]` Super like exposto no frontend e suportado no modo demo
+- `[x]` MatchingService exclui candidatos ja bloqueados e matches ativos
+- `[x]` `ChatGateway.notifyMatch()` chamado apos criacao de match bilateral
+- `[x]` RecommendationService integrado ao fluxo de candidatos e registro de interacoes
+
+**Registro e onboarding:**
+- `[x]` AuthService retorna campos publicos basicos do usuario apos login/registro
+- `[x]` Auth store aguarda `checkOnboardingStatus()` apos login/registro
+- `[x]` LoginScreen e RegisterScreen exibem erros inline no web/app em vez de depender de `Alert.alert`
+- `[x]` Onboarding step 1 persiste `mainIntention` no PublicWellnessProfile
+- `[x]` Onboarding principal recebeu motion design real no app: entrada fade/slide, progresso segmentado, cards/chips animados, painel informativo e conclusao animada
+- `[x]` OnboardingCompletedScreen troca para o app via `setOnboardingCompleted(true)`, sem rota inexistente `Main`
+- `[x]` WatchConnectionScreen remove navegacao para rota inexistente `Main`
+- `[x]` ProfileScreen remove navegacao para rota inexistente `DeleteAccount`
+- `[x]` WebApp agora respeita `onboardingCompleted` e mostra onboarding animado apos cadastro/login
+- `[x]` WebApp ganhou rota basica de Chat para abrir conversas pela interface web
+
+**Health dashboard e sync:**
+- `[x]` `GET /health/dashboard` retorna metricas agregadas do usuario autenticado
+- `[x]` HealthDashboardScreen consome dados reais do backend e remove `Math.random()`
+- `[x]` Ingestao direta de amostras atualiza `health_profile_daily` usando HealthProfileProcessor
+- `[x]` health-sync mobile centraliza ingestao no healthService e nao chama API no modo demo
+
+**Infra e qualidade:**
+- `[x]` `ChallengeProgress` adicionado ao TypeORM root config
+- `[x]` DataSource CLI e migration TypeORM para geolocation/challenge progress criados
+- `[x]` Migration TypeORM `GeolocationAndChallengeProgress1720050000000` executada no banco local
+- `[x]` `infra/init.sql` e `infra/migrations/007` alinhados com entities atuais
+- `[x]` CI passa a chamar `npm run test:integration` com `DATABASE_URL`
+- `[x]` `backend/package.json` corrige `start:prod` para `dist/src/main.js`
+- `[x]` Typecheck mobile ajustado para web/RN e build Vite validado
+
+**Chat e validacao ponta a ponta:**
+- `[x]` ChatService marca como lidas as mensagens do outro participante, nao as do proprio usuario
+- `[x]` Docker local validado: Postgres/TimescaleDB e Redis saudaveis via Docker Compose
+- `[x]` API local validada em `http://localhost:3001/health` com versao `0.4.1`
+- `[x]` Happy path funcional validado via API local: registro de 2 usuarios -> onboarding 7 passos -> candidatos -> mutual like -> match -> envio/leitura de mensagem
+- `[x]` Happy path validado pela UI web em Chrome headless: criar conta -> onboarding com motion -> match -> abrir conversa -> enviar mensagem
+
 ---
 
 ## Pendentes
+
+### Lista Consolidada Pos-Varredura — Prioridade Real
+
+- `[ ]` P0 / M — Validar o mesmo happy path no Android Studio/emulador: criar conta, onboarding animado, match, abrir conversa e enviar mensagem pela UI nativa.
+- `[ ]` P0 / M — Criar bootstrap de schema confiavel para testes de integracao no CI. Hoje existe migration incremental 007, mas ainda falta migration inicial TypeORM ou etapa segura para aplicar `init.sql` com TimescaleDB.
+- `[ ]` P1 / M — Preparar checklist de teste em smartwatch real depois do happy path Android: permissoes, Health Connect/HealthKit, ingestao, dashboard e matching apos sync.
+- `[ ]` P1 / M — Upload real de avatar com arquivo (`multer`, disco local ou S3-compatible). Endpoint atual aceita URL string.
+- `[ ]` P1 / M — Persistir ou hidratar RecommendationService a partir de `swipe_history` no startup; o ranking personalizado ainda depende de memoria apos boot.
+- `[ ]` P1 / M — Notificacoes de match/desafio concluido via push ou canal in-app persistente.
+- `[ ]` P1 / M — Testes mobile com Jest + React Native Testing Library para stores, servicos e telas criticas.
+- `[ ]` P2 / L — Bridges nativas reais HealthKit/Health Connect; `native-health.ts` ainda e camada stub para web/dev.
+- `[ ]` P2 / M — Admin dashboard para moderacao: denuncias, acoes, bans e auditoria.
+- `[ ]` P2 / M — Envio de imagens no chat com politica de privacidade/moderacao.
+- `[ ]` P2 / M — Historico temporal detalhado de progresso dos desafios, alem da lista de progresso atual.
+- `[ ]` P2 / L — E2E automatizado com Playwright/Detox cobrindo registro, onboarding, swipe, match e chat.
+- `[ ]` P3 / S — Padronizar mensagens de erro/i18n entre backend e frontend.
 
 ### Smartwatch Integration — P1
 
@@ -177,28 +286,28 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 
 ### Perfil e Match — P1
 
-- `[ ]` Upload de foto de perfil (revelada so apos match)
+- `[x]` Upload de foto de perfil (revelada so apos match)
 - `[x]` Filtros de match (distancia real via geolocation)
 - `[x]` Desfazer match (unmatch)
 
 ### Desafios — P2
 
-- `[ ]` Progresso automatico de desafio via metricas do dia
+- `[x]` Progresso automatico de desafio via metricas do dia
 - `[ ]` Notificacoes de desafio concluido
-- `[ ]` Historico de desafios completados
+- `[x]` Historico de desafios completados
 
 ### Infraestrutura — P1
 
 - `[x]` Testes de integracao (auth, match, health)
 - `[x]` Observabilidade (logs estruturados com LoggingInterceptor)
-- `[ ]` CI/CD com GitHub Actions
+- `[x]` CI/CD com GitHub Actions
 - `[ ]` Migracao TypeORM automatizada (rodar migrations na inicializacao)
 - `[ ]` Deploy em producao (Railway, Render ou VPS)
 
 ### Machine Learning — P3
 
-- `[ ]` Modelo de compatibilidade baseado em embeddings de perfil
-- `[ ]` Recomendacao personalizada por comportamento de swipe
+- `[x]` Modelo de compatibilidade baseado em embeddings de perfil
+- `[x]` Recomendacao personalizada por comportamento de swipe
 
 ---
 
@@ -210,6 +319,17 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 | B002 | Rate limit de swipes usava contagem total, nao diaria | Resolvido | `[x]` |
 | B003 | Sugestoes de chat deterministicas por charCodeAt(0) | Resolvido | `[x]` |
 | B004 | Variaveis de ambiente nao validadas | Media | `[x]` |
+| B005 | Swipe removia card antes da resposta e escondia 400 do backend | Critica | `[x]` |
+| B006 | HealthDashboard usava dados aleatorios em vez de metricas reais | Alta | `[x]` |
+| B007 | OnboardingCompleted/WatchConnection navegavam para rota inexistente Main | Alta | `[x]` |
+| B008 | ProfileScreen navegava para rota inexistente DeleteAccount | Media | `[x]` |
+| B009 | `mainIntention` do onboarding era descartada no backend | Media | `[x]` |
+| B010 | Typecheck mobile quebrava por tipos Jest herdados sem dependencia instalada | Media | `[x]` |
+| B011 | WebApp ignorava onboarding e ia direto para o app apos criar conta | Critica | `[x]` |
+| B012 | WebApp nao conseguia abrir Chat a partir da lista de mensagens | Alta | `[x]` |
+| B013 | ChatService marcava como lidas mensagens enviadas pelo proprio usuario | Media | `[x]` |
+| B014 | `npm run start:prod` apontava para `dist/main`, mas build gera `dist/src/main.js` | Media | `[x]` |
+| B015 | Vite pre-transform crash: `react-native-health` e `react-native-health-connect` nao instalados mas referenciados via `require()` em try/catch — Vite tentava resolve-los durante `optimizeDeps` mesmo nunca sendo usados no web | Critica | `[x]` |
 
 ---
 
@@ -232,3 +352,5 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 | `0.1.1` | 2026-05-08 | Correcoes web, modo demo, mock data |
 | `0.2.0` | 2026-07-04 | Onboarding, moderacao, perfil seguro, matching transactional, docs |
 | `0.3.0` | 2026-07-04 | Audit, roles, healthcheck, logs estruturados, retencao, onboarding mobile completo, testes de integracao |
+| `0.4.0` | 2026-07-04 | Geolocation, ML, desafios progresso, CI/CD, photo upload, health dashboard, provider sync mobile, correcoes |
+| `0.4.1` | 2026-07-04 | Estabilizacao: swipe, onboarding motion, dashboard real, migrations TypeORM/SQL, CI integration command, typecheck mobile, happy path API/UI web |

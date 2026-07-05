@@ -61,6 +61,9 @@ health/
 │   │   ├── store/             # Zustand: auth, match, chat
 │   │   ├── theme/             # colors, typography, spacing
 │   │   └── types/             # user, health, match, chat types
+│   ├── stubs/               # Stubs para modulos nativos (Vite)
+│   │   ├── react-native-health.js
+│   │   └── react-native-health-connect.js
 │   └── package.json
 ├── infra/
 │   ├── docker-compose.yml
@@ -102,10 +105,14 @@ cd ../backend && npm install && npm run start:dev
 # 5. Em outro terminal — rode o app mobile
 cd ../mobile && npm install && npm run android
 # ou: npm run ios
+
+# Para desenvolvimento web (Vite):
+cd ../mobile && npm install && npx vite --host 0.0.0.0 --port 5173
 ```
 
-A API estara disponivel em `http://localhost:3000`.
-Swagger UI: `http://localhost:3000/docs`
+O app web fica em `http://localhost:5173` e a API em `http://localhost:3001`.
+> O Vite usa stubs vazios em `mobile/stubs/` para `react-native-health` e `react-native-health-connect` — pacotes nao instalados, necessarios apenas em dispositivo real.
+Swagger UI: `http://localhost:3001/docs`
 
 ### Rodar tudo com Docker (backend incluido)
 
@@ -127,6 +134,7 @@ cd infra && docker compose up -d
 | POST | `/health/consent/revoke` | Revogar consentimento | Sim |
 | POST | `/health/ingest` | Importar dados do smartwatch | Sim |
 | GET | `/health/profile` | Perfil derivado (bandas seguras) | Sim |
+| GET | `/health/dashboard` | Dados agregados do proprio usuario para dashboard | Sim |
 | GET | `/matching/candidates` | Lista de candidatos ranqueados | Sim |
 | POST | `/matching/swipe` | Like ou dislike em um candidato | Sim |
 | GET | `/matching/matches` | Todos os matches ativos | Sim |
@@ -142,6 +150,7 @@ cd infra && docker compose up -d
 | POST | `/health/consent/revoke` | Revogar (remove campos publicos) | Sim |
 | POST | `/health/ingest` | Importar dados do smartwatch | Sim |
 | GET | `/health/profile` | Perfil derivado (bandas seguras) | Sim |
+| GET | `/health/dashboard` | Dados agregados do proprio usuario para dashboard | Sim |
 | GET | `/matching/candidates` | Lista de candidatos ranqueados | Sim |
 | POST | `/matching/swipe` | Like ou dislike (transactional) | Sim |
 | GET | `/matching/matches` | Todos os matches ativos | Sim |
@@ -218,7 +227,7 @@ Veja `.env.example` para a lista completa. Variaveis obrigatorias:
 cd backend
 npm run test          # unit tests
 npm run test:cov      # com cobertura
-npm run test:e2e      # end-to-end (requer banco rodando)
+npm run test:integration # integracao (requer banco de teste rodando)
 ```
 
 ---
@@ -245,7 +254,8 @@ npm run test:e2e      # end-to-end (requer banco rodando)
 [x] v0.1.0 MVP — core implementado (backend + mobile + infra + docs)
 [x] v0.2.0 — onboarding multi-step, moderacao, perfil seguro
 [x] v0.3.0 — audit, roles, healthcheck, logs estruturados, retencao, onboarding mobile completo, testes de integracao
-[~] v0.4.0 — geolocation, filtros avancados, notificacoes
+[x] v0.4.0 — geolocation, filtros avancados, notificacoes
+[x] v0.4.1 — estabilizacao de swipe, onboarding, dashboard real e migrations
 [ ] v1.0.0 — producao, CI/CD, modelo ML de compatibilidade
 ```
 
