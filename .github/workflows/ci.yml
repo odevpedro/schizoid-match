@@ -92,10 +92,8 @@ jobs:
         run: npm ci
 
       - name: Run integration tests
-        run: npm run test:e2e
+        run: npm run test:integration
         env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USERNAME: wellmatch
-          DB_PASSWORD: wellmatch
-          DB_DATABASE: wellmatch_test
+          DATABASE_URL: postgresql://wellmatch:wellmatch@localhost:5432/wellmatch_test
+          JWT_SECRET: ci-test-secret
+          REDIS_URL: redis://localhost:6379

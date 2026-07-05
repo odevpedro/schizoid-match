@@ -26,7 +26,7 @@ export class HealthCheckController {
     return {
       status: 'ok',
       service: 'wellmatch-backend',
-      version: '0.2.0',
+      version: '0.4.1',
       timestamp: new Date().toISOString(),
     };
   }

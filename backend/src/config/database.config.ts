@@ -10,6 +10,7 @@ import { Match } from '../modules/matching/entities/match.entity';
 import { SwipeHistory } from '../modules/matching/entities/swipe-history.entity';
 import { ChatMessage } from '../modules/chat/entities/chat-message.entity';
 import { Challenge } from '../modules/challenges/entities/challenge.entity';
+import { ChallengeProgress } from '../modules/challenges/entities/challenge-progress.entity';
 import { Block } from '../modules/moderation/entities/block.entity';
 import { Report } from '../modules/moderation/entities/report.entity';
 import { ModerationAction } from '../modules/moderation/entities/moderation-action.entity';
@@ -30,11 +31,13 @@ export default registerAs('database', () => ({
     SwipeHistory,
     ChatMessage,
     Challenge,
+    ChallengeProgress,
     Block,
     Report,
     ModerationAction,
     AuditEvent,
   ],
+  migrations: [`${__dirname}/../migrations/*{.ts,.js}`],
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
