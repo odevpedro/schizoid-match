@@ -12,7 +12,7 @@ export const matchingService = {
   },
 
   async swipe(targetUserId: string, direction: SwipeDirection): Promise<{ matched: boolean; matchId?: string }> {
-    if (await isDemo()) return { matched: direction === 'like' && targetUserId === 'u3', matchId: 'match-demo' };
+    if (await isDemo()) return { matched: (direction === 'like' || direction === 'super_like') && targetUserId === 'u3', matchId: 'match-demo' };
     return api.post('/matching/swipe', { targetUserId, direction }) as any;
   },
 

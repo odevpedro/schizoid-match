@@ -9,6 +9,30 @@ export type HealthMetricType =
   | 'blood_oxygen'
   | 'skin_temp';
 
+export const METRIC_UNITS: Record<HealthMetricType, string> = {
+  steps: 'passos',
+  sleep: 'min',
+  calories: 'kcal',
+  heart_rate: 'bpm',
+  hrv: 'ms',
+  vo2max: 'ml/kg/min',
+  stress: '%',
+  blood_oxygen: '%',
+  skin_temp: '°C',
+};
+
+export const METRIC_LABELS: Record<HealthMetricType, string> = {
+  steps: 'Passos',
+  sleep: 'Sono',
+  calories: 'Calorias',
+  heart_rate: 'Freq. Cardíaca',
+  hrv: 'Variabilidade Cardíaca',
+  vo2max: 'VO2 Máx',
+  stress: 'Estresse',
+  blood_oxygen: 'Oxigenação',
+  skin_temp: 'Temperatura',
+};
+
 export interface ConsentRecord {
   id: string;
   userId: string;
@@ -33,6 +57,24 @@ export interface HealthProfileDaily {
   stressBand: string;
   cardioFitnessBand: string;
   consistencyScore: number;
+}
+
+export interface HealthDashboardData {
+  today: {
+    steps: number;
+    sleepMinutes: number;
+    calories: number;
+    avgHeartRate: number;
+    hrv: number;
+    stressLevel: number;
+  };
+  weekly: {
+    avgSteps: number;
+    avgSleep: number;
+    activeDays: number;
+  };
+  source: string | null;
+  lastSync: string | null;
 }
 
 export type HealthProvider = 'simulated' | 'healthkit' | 'health_connect' | 'garmin' | 'fitbit';

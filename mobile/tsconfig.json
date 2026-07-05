@@ -2,6 +2,8 @@
   "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
     "strict": true,
+    "types": ["react-native"],
+    "lib": ["dom", "dom.iterable", "es2022"],
     "baseUrl": ".",
     "paths": {
       "@theme/*": ["src/theme/*"],

@@ -1,6 +1,6 @@
 import { storage } from './storage';
 import { api } from './api';
-import { ConsentRecord, HealthMetricType, HealthProfileDaily, HealthProvider } from '../types/health.types';
+import { ConsentRecord, HealthDashboardData, HealthMetricType, HealthProfileDaily, HealthProvider } from '../types/health.types';
 import { DEMO_TOKEN, mockConsents, mockHealthProfile } from './mock-data';
 
 const isDemo = async () => (await storage.getItem('@wellmatch:token')) === DEMO_TOKEN;
@@ -22,11 +22,32 @@ export const healthService = {
   },
 
   async ingestMetrics(provider: HealthProvider, fromDate?: string, toDate?: string): Promise<{ imported: number }> {
+    if (await isDemo()) return { imported: 0 };
     return api.post('/health/ingest', { provider, fromDate, toDate }) as any;
+  },
+
+  async ingestMetricSamples(
+    provider: HealthProvider,
+    metrics: Array<{ type: HealthMetricType; value: number; unit: string; timestamp: string }>,
+  ): Promise<{ imported?: number; ingested?: number }> {
+    if (await isDemo()) return { imported: metrics.length };
+    return api.post('/health/ingest', { provider, metrics }) as any;
   },
 
   async getDerivedProfile(): Promise<HealthProfileDaily[]> {
     if (await isDemo()) return [mockHealthProfile];
     return api.get('/health/profile') as any;
+  },
+
+  async getDashboardData(): Promise<HealthDashboardData> {
+    if (await isDemo()) {
+      return {
+        today: { steps: 0, sleepMinutes: 0, calories: 0, avgHeartRate: 0, hrv: 0, stressLevel: 0 },
+        weekly: { avgSteps: 0, avgSleep: 0, activeDays: 0 },
+        source: 'demo',
+        lastSync: null,
+      };
+    }
+    return api.get('/health/dashboard') as any;
   },
 };

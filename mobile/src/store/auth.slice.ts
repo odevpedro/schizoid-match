@@ -28,13 +28,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     const result = await authService.login(email, password);
     set({ user: result.user as any, token: result.access_token, isAuthenticated: true });
-    get().checkOnboardingStatus();
+    await get().checkOnboardingStatus();
   },
 
   register: async (data) => {
     const result = await authService.register(data);
     set({ user: result.user as any, token: result.access_token, isAuthenticated: true });
-    get().checkOnboardingStatus();
+    await get().checkOnboardingStatus();
   },
 
   logout: async () => {

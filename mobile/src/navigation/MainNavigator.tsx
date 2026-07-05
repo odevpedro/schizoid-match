@@ -10,6 +10,7 @@ import { MessagesScreen } from '../screens/chat/MessagesScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { PrivacyScreen } from '../screens/privacy/PrivacyScreen';
 import { WatchConnectionScreen } from '../screens/onboarding/WatchConnectionScreen';
+import { HealthDashboardScreen } from '../screens/health/HealthDashboardScreen';
 import { ReportUserScreen } from '../screens/moderation/ReportUserScreen';
 import { BlockedUsersScreen } from '../screens/moderation/BlockedUsersScreen';
 
@@ -35,6 +36,7 @@ const ProfileStack = () => (
     <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: 'Privacidade' }} />
     <Stack.Screen name="WatchConnection" component={WatchConnectionScreen} options={{ title: 'Smartwatch' }} />
+    <Stack.Screen name="HealthDashboard" component={HealthDashboardScreen} options={{ title: 'Meus Dados' }} />
     <Stack.Screen name="ReportUser" component={ReportUserScreen} options={{ title: 'Denunciar' }} />
     <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} options={{ title: 'Bloqueados' }} />
   </Stack.Navigator>

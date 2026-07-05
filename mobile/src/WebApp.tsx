@@ -7,13 +7,34 @@ import { ProfileScreen } from './screens/profile/ProfileScreen';
 import { MatchScreen } from './screens/match/MatchScreen';
 import { ChallengesScreen } from './screens/challenges/ChallengesScreen';
 import { MessagesScreen } from './screens/chat/MessagesScreen';
+import { ChatScreen } from './screens/chat/ChatScreen';
 import { PrivacyScreen } from './screens/privacy/PrivacyScreen';
 import { WatchConnectionScreen } from './screens/onboarding/WatchConnectionScreen';
+import { OnboardingIntroScreen } from './screens/onboarding/OnboardingIntroScreen';
+import { OnboardingIntentScreen } from './screens/onboarding/OnboardingIntentScreen';
+import { OnboardingGoalsScreen } from './screens/onboarding/OnboardingGoalsScreen';
+import { OnboardingActivitiesScreen } from './screens/onboarding/OnboardingActivitiesScreen';
+import { OnboardingAvailabilityScreen } from './screens/onboarding/OnboardingAvailabilityScreen';
+import { OnboardingIntensityScreen } from './screens/onboarding/OnboardingIntensityScreen';
+import { OnboardingPrivacyScreen } from './screens/onboarding/OnboardingPrivacyScreen';
+import { OnboardingSourceScreen } from './screens/onboarding/OnboardingSourceScreen';
+import { OnboardingCompletedScreen } from './screens/onboarding/OnboardingCompletedScreen';
 import { colors } from './theme/colors';
 import { useAuthStore } from './store/auth.slice';
 
 type AuthRoute = 'Login' | 'Register';
-type AppRoute = 'Profile' | 'Match' | 'Challenges' | 'Messages' | 'Privacy' | 'WatchConnection';
+type AppRoute = 'Profile' | 'Match' | 'Challenges' | 'Messages' | 'Chat' | 'Privacy' | 'WatchConnection';
+type OnboardingRoute =
+  | 'OnboardingIntro'
+  | 'OnboardingIntent'
+  | 'OnboardingGoals'
+  | 'OnboardingActivities'
+  | 'OnboardingAvailability'
+  | 'OnboardingIntensity'
+  | 'OnboardingPrivacy'
+  | 'OnboardingSource'
+  | 'OnboardingCompleted';
+type RouteParams = Record<string, any> | undefined;
 
 const queryClient = new QueryClient();
 
@@ -27,11 +48,19 @@ const TABS: Array<{ route: AppRoute; label: string }> = [
 const WebShell = () => {
   const [authRoute, setAuthRoute] = useState<AuthRoute>('Login');
   const [appRoute, setAppRoute] = useState<AppRoute>('Profile');
-  const { isAuthenticated, isLoading, restoreSession } = useAuthStore();
+  const [onboardingRoute, setOnboardingRoute] = useState<OnboardingRoute>('OnboardingIntro');
+  const [routeParams, setRouteParams] = useState<RouteParams>();
+  const { isAuthenticated, isLoading, onboardingCompleted, restoreSession } = useAuthStore();
 
   useEffect(() => {
     restoreSession();
   }, [restoreSession]);
+
+  useEffect(() => {
+    if (isAuthenticated && !onboardingCompleted) {
+      setOnboardingRoute('OnboardingIntro');
+    }
+  }, [isAuthenticated, onboardingCompleted]);
 
   const authNavigation = useMemo(
     () => ({
@@ -43,8 +72,24 @@ const WebShell = () => {
 
   const appNavigation = useMemo(
     () => ({
-      navigate: (route: AppRoute) => setAppRoute(route),
-      goBack: () => setAppRoute('Profile'),
+      navigate: (route: AppRoute, params?: RouteParams) => {
+        setRouteParams(params);
+        setAppRoute(route);
+      },
+      goBack: () => {
+        setRouteParams(undefined);
+        setAppRoute(appRoute === 'Chat' ? 'Messages' : 'Profile');
+      },
+      setOptions: () => {},
+    }),
+    [appRoute],
+  );
+
+  const onboardingNavigation = useMemo(
+    () => ({
+      navigate: (route: OnboardingRoute) => setOnboardingRoute(route),
+      goBack: () => setOnboardingRoute('OnboardingIntro'),
+      setOptions: () => {},
     }),
     [],
   );
@@ -63,18 +108,36 @@ const WebShell = () => {
       : <LoginScreen navigation={authNavigation} />;
   }
 
+  if (!onboardingCompleted) {
+    const OnboardingScreen =
+      onboardingRoute === 'OnboardingIntent' ? OnboardingIntentScreen
+        : onboardingRoute === 'OnboardingGoals' ? OnboardingGoalsScreen
+          : onboardingRoute === 'OnboardingActivities' ? OnboardingActivitiesScreen
+            : onboardingRoute === 'OnboardingAvailability' ? OnboardingAvailabilityScreen
+              : onboardingRoute === 'OnboardingIntensity' ? OnboardingIntensityScreen
+                : onboardingRoute === 'OnboardingPrivacy' ? OnboardingPrivacyScreen
+                  : onboardingRoute === 'OnboardingSource' ? OnboardingSourceScreen
+                    : onboardingRoute === 'OnboardingCompleted' ? OnboardingCompletedScreen
+                      : OnboardingIntroScreen;
+
+    return <OnboardingScreen navigation={onboardingNavigation as any} />;
+  }
+
   const Screen =
     appRoute === 'Match' ? MatchScreen
       : appRoute === 'Challenges' ? ChallengesScreen
         : appRoute === 'Messages' ? MessagesScreen
-          : appRoute === 'Privacy' ? PrivacyScreen
-            : appRoute === 'WatchConnection' ? WatchConnectionScreen
-              : ProfileScreen;
+          : appRoute === 'Chat' ? ChatScreen
+            : appRoute === 'Privacy' ? PrivacyScreen
+              : appRoute === 'WatchConnection' ? WatchConnectionScreen
+                : ProfileScreen;
+
+  const route = { params: routeParams ?? {} };
 
   return (
     <View style={styles.app}>
       <View style={styles.screen}>
-        <Screen navigation={appNavigation as any} />
+        <Screen navigation={appNavigation as any} route={route as any} />
       </View>
       <View style={styles.tabs}>
         {TABS.map((tab) => (
