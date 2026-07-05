@@ -16,7 +16,7 @@ export const Input: React.FC<InputProps> = ({ label, error, containerStyle, ...p
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <TextInput
-        style={[styles.input, focused && styles.focused, error && styles.error]}
+        style={[styles.input, focused ? styles.focused : null, error ? styles.error : null]}
         placeholderTextColor={colors.textMuted}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
