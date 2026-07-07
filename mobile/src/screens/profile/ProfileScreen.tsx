@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Platform } from 'react-native';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { onboardingService, PublicWellnessProfile } from '../../services/onboarding.service';
+import { avatarService } from '../../services/avatar.service';
+import { api } from '../../services/api';
 import { useAuthStore } from '../../store/auth.slice';
 
 const MAIN_INTENTION_LABELS: Record<string, string> = {
@@ -87,10 +89,41 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [profile, setProfile] = useState<PublicWellnessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProfile();
+    loadUser();
   }, []);
+
+  const loadUser = async () => {
+    try {
+      const me = await api.get('/users/me');
+      setAvatarUrl((me as any)?.avatarUrl || null);
+    } catch {}
+  };
+
+  const handlePickImage = () => {
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await avatarService.upload(file, file.name);
+      setAvatarUrl(url);
+    } catch {
+      setError('Erro ao enviar foto');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const loadProfile = async () => {
     setLoading(true);
@@ -127,11 +160,27 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{user?.name?.charAt(0) ?? '?'}</Text>
-        </View>
+        <TouchableOpacity style={styles.avatarWrap} onPress={handlePickImage} disabled={uploading}>
+          {avatarUrl ? (
+            <Image source={{ uri: `http://localhost:3001${avatarUrl}` }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{user?.name?.charAt(0) ?? '?'}</Text>
+            </View>
+          )}
+          {uploading && <ActivityIndicator size="small" color={colors.primary} style={styles.avatarOverlay} />}
+        </TouchableOpacity>
         <Text style={styles.name}>{user?.name}</Text>
         <Text style={styles.email}>{user?.email}</Text>
+        {Platform.OS === 'web' && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+        )}
       </View>
 
       {!profile ? (
@@ -235,6 +284,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   header: { alignItems: 'center', marginBottom: spacing.xl },
+  avatarWrap: { marginBottom: spacing.md, position: 'relative' },
   avatar: {
     width: 80,
     height: 80,
@@ -244,9 +294,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.primary,
-    marginBottom: spacing.md,
   },
   avatarText: { fontSize: 32, fontWeight: '700', color: colors.primary },
+  avatarOverlay: { position: 'absolute', top: '50%', left: '50%', marginLeft: -10, marginTop: -10 },
   name: { fontSize: 22, fontWeight: '700', color: colors.text },
   email: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
   card: {
