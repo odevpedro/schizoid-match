@@ -74,4 +74,98 @@ export class ChallengeProgressService {
       order: { completedAt: 'DESC' },
     });
   }
+
+  async getDetailedHistory(
+    userId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{
+    data: Array<{
+      challenge: { id: string; name: string; description: string | null; target: number | null };
+      progressUpdates: Array<{ date: string; progressValue: number; status: string }>;
+      totalDaysActive: number;
+      currentStreak: number;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const challenges = await this.challengeRepo
+      .createQueryBuilder('c')
+      .innerJoin('match', 'm', 'c.match_id = m.id')
+      .where('(m.user_id_1 = :userId OR m.user_id_2 = :userId)', { userId })
+      .orderBy('c.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getMany();
+
+    const total = await this.challengeRepo
+      .createQueryBuilder('c')
+      .innerJoin('match', 'm', 'c.match_id = m.id')
+      .where('(m.user_id_1 = :userId OR m.user_id_2 = :userId)', { userId })
+      .getCount();
+
+    const data = await Promise.all(
+      challenges.map(async (challenge) => {
+        const updates = await this.progressRepo.find({
+          where: { challengeId: challenge.id, userId },
+          order: { date: 'ASC' },
+        });
+
+        const progressUpdates = updates.map((u) => ({
+          date: u.date,
+          progressValue: Number(u.currentValue),
+          status: u.status,
+        }));
+
+        const dates = [...new Set(updates.map((u) => u.date))].sort();
+        const totalDaysActive = dates.length;
+
+        let currentStreak = 0;
+        if (dates.length > 0) {
+          const today = new Date().toISOString().split('T')[0];
+          const lastDate = dates[dates.length - 1];
+          const diffMs = new Date(today).getTime() - new Date(lastDate).getTime();
+          const diffDays = Math.floor(diffMs / 86400000);
+
+          if (diffDays <= 1) {
+            currentStreak = 1;
+            for (let i = dates.length - 2; i >= 0; i--) {
+              const curr = new Date(dates[i + 1]);
+              const prev = new Date(dates[i]);
+              const gap = (curr.getTime() - prev.getTime()) / 86400000;
+              if (gap <= 1) {
+                currentStreak++;
+              } else {
+                break;
+              }
+            }
+          }
+        }
+
+        return {
+          challenge: {
+            id: challenge.id,
+            name: challenge.title,
+            description: challenge.description,
+            target: challenge.targetValue ? Number(challenge.targetValue) : null,
+          },
+          progressUpdates,
+          totalDaysActive,
+          currentStreak,
+        };
+      }),
+    );
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
 }

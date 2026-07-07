@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ChallengesService } from './challenges.service';
 import { ChallengeProgressService } from './challenge-progress.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -42,6 +42,18 @@ export class ChallengesController {
   @ApiOperation({ summary: 'Get completed challenge history for current user' })
   async getHistory(@Request() req) {
     return this.challengesService.getHistory(req.user.id);
+  }
+
+  @Get('history/detailed')
+  @ApiOperation({ summary: 'Get detailed progress history grouped by challenge with daily snapshots' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getDetailedHistory(
+    @Request() req,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.progressService.getDetailedHistory(req.user.id, page, limit);
   }
 
   @Get(':id/progress')
