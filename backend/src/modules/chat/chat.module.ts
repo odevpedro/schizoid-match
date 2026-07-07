@@ -7,10 +7,12 @@ import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
 import { ChatMessage } from './entities/chat-message.entity';
 import { Match } from '../matching/entities/match.entity';
+import { User } from '../users/entities/user.entity';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ChatMessage, Match]),
+    TypeOrmModule.forFeature([ChatMessage, Match, User]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -18,6 +20,7 @@ import { Match } from '../matching/entities/match.entity';
         secret: config.get<string>('JWT_SECRET') || 'wellmatch-dev-secret',
       }),
     }),
+    NotificationModule,
   ],
   providers: [ChatService, ChatGateway],
   controllers: [ChatController],

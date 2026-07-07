@@ -1,4 +1,4 @@
-import { IsString, IsUUID, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsUUID, MinLength, MaxLength, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SendMessageDto {
@@ -11,4 +11,9 @@ export class SendMessageDto {
   @MinLength(1)
   @MaxLength(1000)
   message: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
 }

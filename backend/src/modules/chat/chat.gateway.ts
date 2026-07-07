@@ -60,16 +60,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('message:send')
   async handleMessage(
-    @MessageBody() data: { matchId: string; message: string },
+    @MessageBody() data: { matchId: string; message: string; imageUrl?: string },
     @ConnectedSocket() client: Socket,
   ) {
     const userId = this.connectedUsers.get(client.id);
     if (!userId) return { error: 'Not authenticated' };
 
-    if (!data.message?.trim()) return { error: 'Message cannot be empty' };
-    if (data.message.length > 2000) return { error: 'Message too long' };
+    if (!data.message?.trim() && !data.imageUrl) return { error: 'Message or image required' };
+    if (data.message?.length > 2000) return { error: 'Message too long' };
 
-    const message = await this.chatService.sendMessage(userId, { matchId: data.matchId, message: data.message });
+    const message = await this.chatService.sendMessage(userId, { matchId: data.matchId, message: data.message || '', imageUrl: data.imageUrl });
 
     this.server.to(`match:${data.matchId}`).emit('message:received', message);
 

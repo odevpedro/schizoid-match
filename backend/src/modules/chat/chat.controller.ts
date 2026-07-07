@@ -1,8 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiQuery, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { extname } from 'path';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+const multer = require('multer');
+const diskStorage = require('multer/storage/disk');
 
 @ApiTags('chat')
 @ApiBearerAuth()
@@ -10,6 +15,34 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('chat')
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
+
+  @Post('upload-image')
+  @ApiOperation({ summary: 'Upload image for chat' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: process.cwd() + '/uploads/chat',
+        filename: (_req: any, file: any, cb: any) => {
+          const ext = extname(file.originalname);
+          cb(null, `chat-${Date.now()}${ext}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req: any, file: any, cb: any) => {
+        if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
+          cb(new BadRequestException('Only image files (jpg, png, gif, webp) are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadImage(@Request() req, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('File is required');
+    const imageUrl = `/uploads/chat/${file.filename}`;
+    return { imageUrl };
+  }
 
   @Get('conversations')
   @ApiOperation({ summary: 'Get all conversations for current user' })

@@ -3,8 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatMessage } from './entities/chat-message.entity';
 import { Match } from '../matching/entities/match.entity';
+import { User } from '../users/entities/user.entity';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AuditService } from '../audit/audit.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const DAILY_MESSAGE_LIMIT = parseInt(process.env.DAILY_MESSAGE_LIMIT || '200');
 const WELLNESS_SUGGESTIONS = [
@@ -27,6 +29,9 @@ export class ChatService {
     private readonly messageRepo: Repository<ChatMessage>,
     @InjectRepository(Match)
     private readonly matchRepo: Repository<Match>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    private readonly notificationService: NotificationService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -67,10 +72,25 @@ export class ChatService {
       matchId: dto.matchId,
       senderId: userId,
       message: dto.message,
+      imageUrl: dto.imageUrl,
     });
 
     const saved = await this.messageRepo.save(message);
     await this.auditService.record({ userId, eventType: 'message_sent', resourceType: 'message', resourceId: saved.id, metadata: { matchId: dto.matchId } });
+
+    const match = await this.matchRepo.findOne({ where: { id: dto.matchId }, relations: ['user1', 'user2'] });
+    if (match) {
+      const recipientId = match.userId1 === userId ? match.userId2 : match.userId1;
+      const senderUser = match.userId1 === userId ? match.user1 : match.user2;
+      const senderName = senderUser?.name || 'Usuário';
+      await this.notificationService.send(recipientId, {
+        type: 'message',
+        title: senderName,
+        body: dto.message.length > 100 ? dto.message.substring(0, 100) + '...' : dto.message,
+        data: { matchId: dto.matchId, messageId: saved.id },
+      });
+    }
+
     return saved;
   }
 
