@@ -60,6 +60,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   checkOnboardingStatus: async () => {
+    const token = get().token;
+    if (token === DEMO_TOKEN) {
+      set({ onboardingCompleted: true });
+      return;
+    }
     try {
       const status = await onboardingService.getStatus();
       set({ onboardingCompleted: status.completed });
