@@ -3,6 +3,7 @@ export interface ChatMessage {
   matchId: string;
   senderId: string;
   message: string;
+  imageUrl?: string;
   isRead: boolean;
   timestamp: string;
   sender?: { id: string; name: string };

@@ -4,6 +4,7 @@ import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { chatService } from '../../services/chat.service';
 import { useChatStore } from '../../store/chat.slice';
+import { NotificationBell } from '../../components/common/NotificationBell';
 import { Conversation } from '../../types/chat.types';
 
 export const MessagesScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -44,7 +45,10 @@ export const MessagesScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Mensagens</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>Mensagens</Text>
+        <NotificationBell navigation={navigation} />
+      </View>
       {conversations.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>💬</Text>
@@ -64,7 +68,14 @@ export const MessagesScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  title: { fontSize: 26, fontWeight: '800', color: colors.text, padding: spacing.screen, paddingTop: 60 },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.screen,
+    paddingTop: 60,
+  },
+  title: { fontSize: 26, fontWeight: '800', color: colors.text },
   list: { paddingHorizontal: spacing.screen },
   item: {
     flexDirection: 'row',
