@@ -1,4 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
+import { SwipeHistory } from './entities/swipe-history.entity';
 
 interface SwipeRecord {
   targetUserId: string;
@@ -31,8 +34,27 @@ interface WellnessProfile {
 }
 
 @Injectable()
-export class RecommendationService {
+export class RecommendationService implements OnModuleInit {
   private readonly interactions = new Map<string, SwipeRecord[]>();
+
+  constructor(
+    @InjectRepository(SwipeHistory)
+    private readonly swipeRepo: Repository<SwipeHistory>,
+  ) {}
+
+  async onModuleInit() {
+    const all = await this.swipeRepo.find();
+    for (const row of all) {
+      if (!this.interactions.has(row.userId)) {
+        this.interactions.set(row.userId, []);
+      }
+      this.interactions.get(row.userId)!.push({
+        targetUserId: row.targetUserId,
+        direction: row.direction,
+        timestamp: row.timestamp,
+      });
+    }
+  }
 
   async getRecommendedOrder(
     userId: string,
@@ -87,13 +109,20 @@ export class RecommendationService {
     targetUserId: string,
     direction: string,
   ): Promise<void> {
+    const rec = this.swipeRepo.create({
+      userId,
+      targetUserId,
+      direction: direction as SwipeRecord['direction'],
+    });
+    await this.swipeRepo.save(rec);
+
     if (!this.interactions.has(userId)) {
       this.interactions.set(userId, []);
     }
     this.interactions.get(userId)!.push({
       targetUserId,
       direction: direction as SwipeRecord['direction'],
-      timestamp: new Date(),
+      timestamp: rec.timestamp,
     });
   }
 

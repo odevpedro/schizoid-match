@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { Block } from '../moderation/entities/block.entity';
 import { ChatGateway } from '../chat/chat.gateway';
 import { AuditService } from '../audit/audit.service';
+import { NotificationService } from '../notifications/notification.service';
 import { RecommendationService } from './recommendation.service';
 
 const MAX_SWIPES_PER_DAY = parseInt(process.env.MAX_SWIPES_PER_DAY || '50');
@@ -39,6 +40,8 @@ export class MatchingService {
     private readonly chatGateway?: ChatGateway,
     @Optional()
     private readonly recommendationService?: RecommendationService,
+    @Optional()
+    private readonly notificationService?: NotificationService,
   ) {}
 
   async getCandidates(userId: string): Promise<any[]> {
@@ -196,6 +199,25 @@ export class MatchingService {
           await this.auditService.record({ userId, eventType: 'match_created', resourceType: 'match', resourceId: saved.id, metadata: { targetUserId: dto.targetUserId, score: scoreCompatibility } });
           await this.recommendationService?.recordInteraction(userId, dto.targetUserId, dto.direction);
           this.chatGateway?.notifyMatch(userId, dto.targetUserId, saved.id);
+
+          const targetUser = await this.userRepo.findOne({ where: { id: dto.targetUserId } });
+          const currentUser = await this.userRepo.findOne({ where: { id: userId } });
+          const targetName = targetUser?.name || 'Usuário';
+          const currentName = currentUser?.name || 'Usuário';
+
+          await this.notificationService?.send(userId, {
+            type: 'match',
+            title: 'Novo match!',
+            body: `Você deu match com ${targetName}`,
+            data: { matchId: saved.id },
+          });
+          await this.notificationService?.send(dto.targetUserId, {
+            type: 'match',
+            title: 'Novo match!',
+            body: `Você deu match com ${currentName}`,
+            data: { matchId: saved.id },
+          });
+
           return { matched: true, matchId: saved.id, compatibility };
         }
       }
