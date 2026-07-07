@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { storage } from './storage';
 
-const BASE_URL = __DEV__ ? 'http://localhost:3001' : 'https://api.wellmatch.app';
+const BASE_URL = __DEV__ ? 'http://10.0.2.2:3001' : 'https://api.wellmatch.app';
 
 export const api = axios.create({
   baseURL: BASE_URL,
