@@ -65,7 +65,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: timescale/timescaledb:latest-pg16
         env:
           POSTGRES_USER: wellmatch
           POSTGRES_PASSWORD: wellmatch
@@ -90,6 +90,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Bootstrap schema
+        run: |
+          psql "$DATABASE_URL" -f ../infra/init.sql
+          npm run migration:run
+        env:
+          DATABASE_URL: postgresql://wellmatch:wellmatch@localhost:5432/wellmatch_test
 
       - name: Run integration tests
         run: npm run test:integration
