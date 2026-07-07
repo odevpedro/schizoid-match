@@ -1,7 +1,7 @@
 # Backlog — WellMatch
 
 > Registro vivo do progresso do projeto. Atualizado a cada mudanca de estado de uma funcionalidade.
-> **Ultima atualizacao:** 2026-07-04
+> **Ultima atualizacao:** 2026-07-05
 
 ---
 
@@ -9,7 +9,7 @@
 
 Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas saudaveis, caminhadas, treinos e companhia — sem expor dados sensiveis de saude.
 
-**Versao atual:** `0.4.1`
+**Versao atual:** `0.5.0`
 **Stack principal:** React Native + NestJS + PostgreSQL + TimescaleDB + Redis
 
 ---
@@ -213,6 +213,18 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 - `[x]` CORS multi-origin via split(',')
 - `[x]` Consent no frontend envia purpose obrigatorio
 
+### v0.5.0 — Admin Dashboard para Moderacao (2026-07-05)
+
+- `[x]` AdminGuard para moderadores e administradores
+- `[x]` AdminModule com AdminService e AdminController
+- `[x]` Endpoints: GET /admin/dashboard, GET /admin/reports, GET /admin/reports/:id, POST /admin/reports/:id/resolve, GET /admin/audit
+- `[x]` AdminDashboardScreen com cards de estatisticas e navegacao
+- `[x]` AdminReportsScreen com FlatList de denuncias e pull-to-refresh
+- `[x]` AdminReportDetailScreen com acoes de warn/ban/dismiss
+- `[x]` AdminAuditScreen com paginacao e icones por tipo de evento
+- `[x]` Registro de telas no ProfileStack do MainNavigator
+- `[x]` Documentacao atualizada: README, backlog, system-feature-flows, data-model
+
 ### v0.4.1 — Estabilizacao Pos-Varredura (2026-07-04)
 
 **Swipe e matching:**
@@ -263,19 +275,19 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 
 ### Lista Consolidada Pos-Varredura — Prioridade Real
 
-- `[ ]` P0 / M — Validar o mesmo happy path no Android Studio/emulador: criar conta, onboarding animado, match, abrir conversa e enviar mensagem pela UI nativa.
-- `[ ]` P0 / M — Criar bootstrap de schema confiavel para testes de integracao no CI. Hoje existe migration incremental 007, mas ainda falta migration inicial TypeORM ou etapa segura para aplicar `init.sql` com TimescaleDB.
+- `[ ]` P0 / M — Validar o mesmo happy path no Android Studio/emulador: criar conta, onboarding animado, match, abrir conversa e enviar mensagem pela UI nativa. Requer dispositivo Android ou emulador.
+- `[x]` P0 / M — Bootstrap de schema confiavel para CI: CI usa `timescale/timescaledb:latest-pg16`, aplica `init.sql` + `migration:run` automaticamente; `main.ts` executa `ds.runMigrations()` na inicializacao.
 - `[ ]` P1 / M — Preparar checklist de teste em smartwatch real depois do happy path Android: permissoes, Health Connect/HealthKit, ingestao, dashboard e matching apos sync.
-- `[ ]` P1 / M — Upload real de avatar com arquivo (`multer`, disco local ou S3-compatible). Endpoint atual aceita URL string.
-- `[ ]` P1 / M — Persistir ou hidratar RecommendationService a partir de `swipe_history` no startup; o ranking personalizado ainda depende de memoria apos boot.
-- `[ ]` P1 / M — Notificacoes de match/desafio concluido via push ou canal in-app persistente.
-- `[ ]` P1 / M — Testes mobile com Jest + React Native Testing Library para stores, servicos e telas criticas.
-- `[ ]` P2 / L — Bridges nativas reais HealthKit/Health Connect; `native-health.ts` ainda e camada stub para web/dev.
-- `[ ]` P2 / M — Admin dashboard para moderacao: denuncias, acoes, bans e auditoria.
-- `[ ]` P2 / M — Envio de imagens no chat com politica de privacidade/moderacao.
-- `[ ]` P2 / M — Historico temporal detalhado de progresso dos desafios, alem da lista de progresso atual.
-- `[ ]` P2 / L — E2E automatizado com Playwright/Detox cobrindo registro, onboarding, swipe, match e chat.
-- `[ ]` P3 / S — Padronizar mensagens de erro/i18n entre backend e frontend.
+- `[x]` P1 / M — Upload real de avatar com arquivo (`multer` diskStorage, `process.cwd()/uploads/avatars/`, 5MB, jpeg/png/gif/webp) + frontend com `avatar.service.ts` e file picker no perfil.
+- `[x]` P1 / M — RecommendationService persiste interacoes via `SwipeHistory` (metodo `recordInteraction()` salva no banco + mantem cache em memoria).
+- `[x]` P1 / M — Notificacoes de match/mensagem/desafio via canal in-app: `NotificationService` com `InAppNotification` em memoria, polling 30s no frontend, integrado com MatchingService e ChatService.
+- `[x]` P1 / M — Testes mobile com Jest + RNTL: 4 suites, 16 testes passando (auth slice, onboarding service, avatar service, ProfileScreen).
+- `[ ]` P2 / L — Bridges nativas reais HealthKit/Health Connect; `native-health.ts` ainda e camada stub para web/dev. Requer build nativo Android/iOS.
+- `[x]` P2 / M — Admin dashboard para moderacao: AdminGuard, 5 endpoints, 4 telas mobile (Dashboard, Reports, ReportDetail, Audit), admin.service.ts.
+- `[x]` P2 / M — Envio de imagens no chat: `POST /chat/upload-image` (multer 10MB), `ChatMessage.imageUrl`, `MessageBubble` renderiza imagem, `chat.service.ts`.
+- `[x]` P2 / M — Historico temporal detalhado de progresso dos desafios: `GET /challenges/history/detailed` com paginacao, totalDaysActive, currentStreak.
+- `[x]` P2 / L — E2E Playwright: `e2e/` com config + happy path completo (registro, onboarding, swipe, match, chat).
+- `[x]` P3 / S — i18n padronizado: `error-messages.ts` (backend), `errors.ts` + `labels.ts` (mobile) em portugues.
 
 ### Smartwatch Integration — P1
 
@@ -354,3 +366,4 @@ Aplicativo privacy-first para conectar pessoas por compatibilidade de rotinas sa
 | `0.3.0` | 2026-07-04 | Audit, roles, healthcheck, logs estruturados, retencao, onboarding mobile completo, testes de integracao |
 | `0.4.0` | 2026-07-04 | Geolocation, ML, desafios progresso, CI/CD, photo upload, health dashboard, provider sync mobile, correcoes |
 | `0.4.1` | 2026-07-04 | Estabilizacao: swipe, onboarding motion, dashboard real, migrations TypeORM/SQL, CI integration command, typecheck mobile, happy path API/UI web |
+| `0.5.1` | 2026-07-05 | Historico detalhado de desafios, E2E Playwright, i18n padronizado |

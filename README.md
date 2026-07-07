@@ -36,15 +36,20 @@ health/
 │   ├── src/
 │   │   ├── modules/
 │   │   │   ├── auth/          # JWT, LocalStrategy, guards, RolesGuard
-│   │   │   ├── users/         # User, UserPreferences
+│   │   │   ├── users/         # User, UserPreferences, avatar upload
+│   │   │   │   ├── dto/
+│   │   │   │   │   └── avatar.dto.ts
+│   │   │   │   └── users.controller.ts
 │   │   │   ├── health/        # Metricas, perfil derivado, consentimento
 │   │   │   │   ├── providers/ # HealthProvider interface + 5 provedores (simulated, healthkit, health_connect, garmin, fitbit)
 │   │   │   │   └── processors/# RawMetrics → DerivedBands
-│   │   │   ├── matching/      # Swipe, Match, CompatibilityCalculator
+│   │   │   ├── matching/      # Swipe, Match, CompatibilityCalculator, RecommendationService
+│   │   │   │   └── recommendation.service.ts  # TF-IDF + persistencia via SwipeHistory
 │   │   │   ├── chat/          # ChatService, ChatGateway (WebSocket)
 │   │   │   ├── challenges/    # Desafios em dupla
 │   │   │   ├── privacy/       # LGPD: export, delete
 │   │   │   ├── audit/         # AuditEvent, AuditService
+│   │   ├── admin/         # Admin dashboard, reports, audit log
 │   │   │   └── health-check/  # HealthCheckController
 │   │   ├── common/            # Filtros, interceptors, decorators, Roles decorator
 │   │   └── config/            # Database, Redis config
@@ -57,7 +62,7 @@ health/
 │   │   │   ├── onboarding/    # Intro, Intent, Goals, Activities, Availability, Intensity, Privacy, Source
 │   │   │   └── moderation/    # BlockedUsers, ReportUser
 │   │   ├── components/        # WellnessCard, CompatibilityBar, badges, chat, moderation
-│   │   ├── services/          # api.ts, auth, matching, chat, health, socket
+│   │   ├── services/          # api.ts, auth, matching, chat, health, socket, avatar.service.ts
 │   │   ├── store/             # Zustand: auth, match, chat
 │   │   ├── theme/             # colors, typography, spacing
 │   │   └── types/             # user, health, match, chat types
@@ -65,6 +70,8 @@ health/
 │   │   ├── react-native-health.js
 │   │   └── react-native-health-connect.js
 │   └── package.json
+├── uploads/
+│   └── avatars/              # Diretorio de upload de fotos (criado em runtime)
 ├── infra/
 │   ├── docker-compose.yml
 │   ├── init.sql               # Schema completo com TimescaleDB
@@ -112,6 +119,8 @@ cd ../mobile && npm install && npx vite --host 0.0.0.0 --port 5173
 
 O app web fica em `http://localhost:5173` e a API em `http://localhost:3001`.
 > O Vite usa stubs vazios em `mobile/stubs/` para `react-native-health` e `react-native-health-connect` — pacotes nao instalados, necessarios apenas em dispositivo real.
+> O `web-main.tsx` adiciona um polyfill global (`window.global = window`) para compatibilidade com bibliotecas que esperam o global do Node.js.
+> O diretorio `uploads/avatars/` e criado em runtime; o backend serve arquivos estaticos via `express.static` em `/uploads`.
 Swagger UI: `http://localhost:3001/docs`
 
 ### Rodar tudo com Docker (backend incluido)
@@ -130,44 +139,38 @@ cd infra && docker compose up -d
 | POST | `/auth/login` | Login e token JWT | Nao |
 | GET | `/users/me` | Perfil do usuario atual | Sim |
 | PATCH | `/users/me/preferences` | Atualizar preferencias | Sim |
+| POST | `/users/me/avatar` | Upload de foto (multipart, 5MB, jpeg/png/gif/webp) | Sim |
+| GET | `/users/me/wellness-profile` | Perfil publico de bem-estar | Sim |
+| GET | `/users/onboarding/status` | Status do onboarding | Sim |
+| POST | `/users/onboarding/step1-7` | Multi-step onboarding | Sim |
 | POST | `/health/consent/grant` | Conceder consentimento por metrica | Sim |
 | POST | `/health/consent/revoke` | Revogar consentimento | Sim |
 | POST | `/health/ingest` | Importar dados do smartwatch | Sim |
 | GET | `/health/profile` | Perfil derivado (bandas seguras) | Sim |
 | GET | `/health/dashboard` | Dados agregados do proprio usuario para dashboard | Sim |
 | GET | `/matching/candidates` | Lista de candidatos ranqueados | Sim |
-| POST | `/matching/swipe` | Like ou dislike em um candidato | Sim |
+| POST | `/matching/swipe` | Like/dislike/super_like (transacional) | Sim |
 | GET | `/matching/matches` | Todos os matches ativos | Sim |
+| DELETE | `/matching/unmatch/:matchId` | Desfazer match | Sim |
 | GET | `/chat/conversations` | Lista de conversas | Sim |
 | GET | `/chat/:matchId/messages` | Mensagens de um match | Sim |
 | POST | `/chat/send` | Enviar mensagem (REST fallback) | Sim |
-| GET | `/challenges` | Desafios ativos do usuario | Sim |
+| GET | `/challenges` | Desafios ativos | Sim |
 | POST | `/challenges` | Criar desafio com parceiro | Sim |
-| GET | `/users/me/wellness-profile` | Perfil publico de bem-estar do usuario | Sim |
-| GET | `/users/onboarding/status` | Status do onboarding | Sim |
-| POST | `/users/onboarding/step1-7` | Multi-step onboarding | Sim |
-| POST | `/health/consent/grant` | Conceder consentimento (com purpose e version) | Sim |
-| POST | `/health/consent/revoke` | Revogar (remove campos publicos) | Sim |
-| POST | `/health/ingest` | Importar dados do smartwatch | Sim |
-| GET | `/health/profile` | Perfil derivado (bandas seguras) | Sim |
-| GET | `/health/dashboard` | Dados agregados do proprio usuario para dashboard | Sim |
-| GET | `/matching/candidates` | Lista de candidatos ranqueados | Sim |
-| POST | `/matching/swipe` | Like ou dislike (transactional) | Sim |
-| GET | `/matching/matches` | Todos os matches ativos | Sim |
-| GET | `/chat/conversations` | Lista de conversas | Sim |
-| GET | `/chat/:matchId/messages` | Mensagens de um match | Sim |
-| POST | `/chat/send` | Enviar mensagem (REST fallback) | Sim |
+| GET | `/challenges/history` | Historico de desafios completados | Sim |
+| GET | `/challenges/history/detailed` | Historico detalhado com snapshots diarios, streak e paginacao | Sim |
+| GET | `/challenges/:id/progress` | Progresso de um desafio | Sim |
+| POST | `/challenges/:id/progress` | Atualizar progresso de um desafio | Sim |
 | POST | `/moderation/block` | Bloquear usuario | Sim |
 | DELETE | `/moderation/block/:id` | Desbloquear | Sim |
 | GET | `/moderation/blocks` | Listar bloqueios | Sim |
 | POST | `/moderation/report` | Denunciar usuario | Sim |
 | GET | `/moderation/reports` | Ver denuncias | Sim |
-| DELETE | `/matching/unmatch/:matchId` | Desfazer match | Sim |
-| — | `BlockedUsers` (mobile) | Tela de bloqueios com desbloqueio | — |
-| — | `ReportUser` (mobile) | Tela de denuncia com motivo e descricao | — |
-| — | `BlockUserButton` (mobile) | Botao reutilizavel com confirmacao | — |
-| GET | `/challenges` | Desafios ativos | Sim |
-| POST | `/challenges` | Criar desafio | Sim |
+| GET | `/admin/dashboard` | Estatisticas do painel de moderacao | Admin |
+| GET | `/admin/reports` | Lista todas as denuncias | Admin |
+| GET | `/admin/reports/:id` | Detalhe de uma denuncia | Admin |
+| POST | `/admin/reports/:id/resolve` | Resolver denuncia (warn/ban/dismiss) | Admin |
+| GET | `/admin/audit` | Log de auditoria paginado | Admin |
 | GET | `/health` | Healthcheck basico | Nao |
 | GET | `/ready` | Readiness probe (banco, redis) | Nao |
 | GET | `/privacy/export` | Exportar dados (LGPD) | Sim |
@@ -228,6 +231,10 @@ cd backend
 npm run test          # unit tests
 npm run test:cov      # com cobertura
 npm run test:integration # integracao (requer banco de teste rodando)
+
+cd e2e
+npm install && npm test          # E2E tests (Playwright)
+npm run test:headed              # E2E tests com navegador visivel
 ```
 
 ---

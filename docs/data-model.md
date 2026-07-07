@@ -1,7 +1,7 @@
 # Data Model — WellMatch
 
 > Documento vivo do modelo de dados. Atualizado sempre que uma entidade for criada, alterada ou removida.
-> **Ultima atualizacao:** 2026-07-04 (v0.4.0)
+> **Ultima atualizacao:** 2026-07-05 (v0.5.0)
 
 ---
 
@@ -10,7 +10,7 @@
 - [Visao Geral](#visao-geral)
 - [Diagrama ER](#diagrama-er)
 - [Entidades: wellmatch](#entidades-wellmatch)
-- [Entidades: Surak](#entidades-surak)
+- [Entidades: Admin](#entidades-admin)
 - [Enums e Dominio de Valores](#enums-e-dominio-de-valores)
 - [Indices e Performance](#indices-e-performance)
 - [Classificacao de Privacidade](#classificacao-de-privacidade)
@@ -355,10 +355,11 @@ erDiagram
 
 ### swipe_history
 
-> Historico de likes e dislikes. Utilizado para rate limiting e deteccao de match bilateral.
+> Historico de likes e dislikes. Utilizado para rate limiting, deteccao de match bilateral e persistencia de interacoes do RecommendationService.
+> O metodo `RecommendationService.recordInteraction()` persiste cada swipe nesta tabela e mantem cache em memoria para reordenacao de candidatos.
 
 **Tabela:** `swipe_history`
-**Servico:** backend/modules/matching
+**Servico:** backend/modules/matching (MatchingService + RecommendationService)
 
 | Campo | Tipo SQL | Nullable | Descricao |
 |-------|----------|----------|-----------|
@@ -509,6 +510,12 @@ erDiagram
 | `created_at` | TIMESTAMPTZ | Nao | NOW() | Data |
 
 ---
+
+### admin (AdminModule)
+
+> Painel de moderacao e auditoria. Consome as entidades existentes `reports`, `moderation_actions`, `blocks`, `audit_events` e `users` sem criar novas entidades.
+
+**Servico:** backend/modules/admin
 
 ### audit_events
 

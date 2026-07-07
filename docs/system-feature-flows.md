@@ -828,32 +828,44 @@ distance = R * c
 
 ---
 
-## Feature: Photo Upload
+## Feature: Avatar Upload
 
-> **Versao:** 1.0.0
+> **Versao:** 2.0.0
 > **Implementada em:** 2026-07-04
-> **Status:** Concluida
+> **Status:** Concluida (atualizada)
 
 ### Resumo
-Permite que o usuario envie uma foto de avatar. A foto so e revelada para candidatos apos match bilateral.
+Upload de foto de avatar via multipart/form-data com armazenamento em disco local. A foto e servida estaticamente e so e revelada para candidatos apos match bilateral.
 
-### Fluxo
+### Fluxo Principal
 
-1. `POST /users/me/avatar` com `{ avatarUrl: string }`
-2. `UsersController.updateAvatar()` chama `UsersService.updateAvatar(userId, avatarUrl)`
-3. Salva `avatarUrl` na entidade `User`
-4. Avatar nao e incluido na lista de candidatos antes do match
-5. Apos match, o avatar pode ser recuperado via dados do match
+1. Usuario toca no avatar no `ProfileScreen` → file picker aberto (web: `<input type="file">`, mobile: futura integracao com camera)
+2. Arquivo selecionado e enviado via `avatar.service.ts` → `POST /users/me/avatar` com `Content-Type: multipart/form-data`
+3. `UsersController.uploadAvatar()` usa `FileInterceptor` do `@nestjs/platform-express` com `multer` diskStorage
+4. `diskStorage.destination`: `process.cwd() + '/uploads/avatars'`
+5. `diskStorage.filename`: `avatar-${Date.now()}${ext}`
+6. `fileFilter`: apenas `image/jpeg`, `image/png`, `image/gif`, `image/webp`
+7. `limits.fileSize`: 5 MB
+8. Avatar salvo em disco, `avatarUrl = /uploads/avatars/<filename>` persistido em `User.avatar_url`
+9. Backend serve o arquivo estaticamente via `express.static(process.cwd() + '/uploads')` montado em `/uploads`
+10. `ProfileScreen` monta a URL como `http://localhost:3001${avatarUrl}`
 
 ### Regras
 
-| Regra | Descricao |
-|-------|-----------|
-| Visibilidade | Avatar nao aparece em `getCandidates()` — apenas apos match |
-| Formato | Aceito como URL string (upload real requer servico de arquivos externo) |
+| Regra | Descricao | Localizacao |
+|-------|-----------|------------|
+| Visibilidade | Avatar nao aparece em `getCandidates()` — apenas apos match | `matching.service.ts` |
+| Formato | Apenas JPEG, PNG, GIF, WebP | `users.controller.ts:119-125` |
+| Tamanho | Maximo 5 MB | `users.controller.ts:118` |
+| Nomenclatura | `avatar-{timestamp}.{ext}` para evitar colisao | `users.controller.ts:114-116` |
 
-### Arquivo
-`backend/src/modules/users/dto/avatar.dto.ts`
+### Arquivos
+
+- `backend/src/modules/users/users.controller.ts` — `uploadAvatar()` com `FileInterceptor`
+- `backend/src/modules/users/dto/avatar.dto.ts` — DTO legacy (URL string)
+- `mobile/src/services/avatar.service.ts` — `upload(file, filename)` via FormData
+- `mobile/src/screens/profile/ProfileScreen.tsx` — file picker e exibicao
+- `backend/src/main.ts` — `express.static` em `/uploads`
 
 ---
 
@@ -928,6 +940,15 @@ RecommendationService
    - Compara com embedding do usuario (similaridade por cosseno)
 4. Ajusta score com base em likes passados (usuarios similares a quem o usuario ja deu like)
 5. Retorna candidatos reordenados por score composto
+
+### Persistencia de Interacoes (v2.0.0)
+
+O `RecommendationService.recordInteraction()` e chamado a cada swipe e persiste o registro em `SwipeHistory`:
+
+1. `swipeRepo.create({ userId, targetUserId, direction })` cria a entidade
+2. `swipeRepo.save(rec)` persiste no banco
+3. Mantem cache em memoria (`Map<string, SwipeRecord[]>`) para reordenacao em tempo real
+4. Dados historicos no banco permitem hidratar o cache em restart futuro (pendente)
 
 ### Algoritmo
 
@@ -1092,3 +1113,265 @@ A tela escuta `healthSyncService.subscribe()` para exibir:
 - `mobile/src/screens/onboarding/WatchConnectionScreen.tsx`
 - `mobile/src/services/health-sync.service.ts`
 - `mobile/src/services/native-health.ts`
+
+---
+
+## Feature: Admin Dashboard
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-05
+> **Status:** Concluida
+
+### Resumo
+Painel de moderacao para administradores e moderadores gerenciarem denuncias, aplicarem acoes e consultarem auditoria.
+
+### Backend
+
+#### AdminGuard
+Guarda que libera acesso a usuarios com role `admin` ou `moderator`. Implementa `CanActivate` e verifica `request.user.role`.
+
+**Arquivo:** `backend/src/modules/auth/guards/admin.guard.ts`
+
+#### Endpoints
+
+| Metodo | Rota | Acesso | Descricao |
+|--------|------|--------|-----------|
+| GET | `/admin/dashboard` | admin/moderator | Estatisticas do painel |
+| GET | `/admin/reports` | admin/moderator | Lista todas as denuncias |
+| GET | `/admin/reports/:id` | admin/moderator | Detalhe de uma denuncia |
+| POST | `/admin/reports/:id/resolve` | admin/moderator | Resolver denuncia |
+| GET | `/admin/audit` | admin apenas | Log de auditoria paginado |
+
+#### Fluxo de Resolucao de Denuncia
+
+1. `POST /admin/reports/:id/resolve` com `{ action: 'warn' | 'ban' | 'dismiss' }`
+2. `AdminService.resolveReport()` busca a denuncia pelo id
+3. Cria `ModerationAction` com o tipo correspondente:
+   - `warn` → actionType `'warning'`, status `'action_taken'`
+   - `ban` → actionType `'permanent_ban'`, status `'action_taken'`
+   - `dismiss` → actionType `'content_removed'`, status `'dismissed'`
+4. Atualiza o status da denuncia
+5. Persiste no banco
+
+#### Dashboard Stats
+
+`AdminService.getDashboardStats()` retorna:
+- `totalReports` — total de denuncias
+- `pendingReports` — denuncias com status `'pending'`
+- `totalBans` — total de `ModerationAction` com `actionType = 'permanent_ban'`
+- `activeUsers` — usuarios com `isDeleted = false`
+
+#### Audit Log
+
+`AdminService.getAuditLog(page, limit)` retorna paginacao:
+- `data` — array de `AuditEvent[]`
+- `total` — total de eventos
+- `page` — pagina atual
+- `limit` — itens por pagina
+
+### Mobile
+
+#### AdminDashboardScreen
+
+**Arquivo:** `mobile/src/screens/admin/AdminDashboardScreen.tsx`
+
+Exibe 4 cards com estatisticas: total de denuncias, pendentes, banimentos, usuarios ativos.
+Navegacao para lista de denuncias e auditoria (apenas admin).
+AdminGuard no frontend: se role nao for admin/moderator, exibe "Acesso restrito".
+
+#### AdminReportsScreen
+
+**Arquivo:** `mobile/src/screens/admin/AdminReportsScreen.tsx`
+
+FlatList com todas as denuncias. Cada item mostra: nome do denunciante, nome do denunciado, motivo, status e data.
+Tap navega para `AdminReportDetail`. Pull-to-refresh para recarregar.
+
+#### AdminReportDetailScreen
+
+**Arquivo:** `mobile/src/screens/admin/AdminReportDetailScreen.tsx`
+
+Exibe detalhes completos da denuncia: denunciante, denunciado, motivo, descricao, status, data.
+Se status for `'pending'`, exibe 3 botoes de acao com confirmacao via `Alert.alert`:
+- "Advertir usuário" (variant secondary)
+- "Banir usuário" (variant danger)
+- "Rejeitar denúncia" (variant outline)
+
+#### AdminAuditScreen
+
+**Arquivo:** `mobile/src/screens/admin/AdminAuditScreen.tsx`
+
+Lista paginada de eventos de auditoria. Cada evento exibe: icone por tipo, label em portugues, descricao e data.
+Infinite scroll (`onEndReached`) carrega mais paginas. Pull-to-refresh.
+
+### Registro no Navigator
+
+As telas sao registradas no `ProfileStack` do `MainNavigator`:
+- `AdminDashboard` — Painel de Moderacao
+- `AdminReports` — Denuncias
+- `AdminReportDetail` — Detalhes
+- `AdminAudit` — Auditoria
+
+### Arquivos
+
+**Backend:**
+- `backend/src/modules/auth/guards/admin.guard.ts`
+- `backend/src/modules/admin/admin.module.ts`
+- `backend/src/modules/admin/admin.service.ts`
+- `backend/src/modules/admin/admin.controller.ts`
+
+**Mobile:**
+- `mobile/src/services/admin.service.ts`
+- `mobile/src/screens/admin/AdminDashboardScreen.tsx`
+- `mobile/src/screens/admin/AdminReportsScreen.tsx`
+- `mobile/src/screens/admin/AdminReportDetailScreen.tsx`
+- `mobile/src/screens/admin/AdminAuditScreen.tsx`
+
+---
+
+## Feature: Detailed Challenge History
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-05
+> **Status:** Concluida
+
+### Resumo
+Historico temporal detalhado de progresso dos desafios com dados de snapshot diario, streak atual e paginacao.
+
+### Endpoint
+
+| Metodo | Rota | Descricao |
+|--------|------|-----------|
+| GET | `/challenges/history/detailed` | Historico detalhado do usuario autenticado |
+
+### Query Params
+
+| Param | Tipo | Default | Descricao |
+|-------|------|---------|-----------|
+| page | number | 1 | Pagina atual |
+| limit | number | 10 | Itens por pagina |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "challenge": { "id": "uuid", "name": "10k steps", "description": "...", "target": 10000 },
+      "progressUpdates": [
+        { "date": "2026-07-01", "progressValue": 5000, "status": "active" },
+        { "date": "2026-07-02", "progressValue": 10000, "status": "completed" }
+      ],
+      "totalDaysActive": 2,
+      "currentStreak": 1
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
+```
+
+### Fluxo
+
+1. `ChallengeProgressService.getDetailedHistory(userId, page, limit)` busca desafios do usuario com paginacao
+2. Para cada desafio, busca progress updates ordenados por data
+3. Calcula `totalDaysActive` (dias distintos com progresso)
+4. Calcula `currentStreak` (dias consecutivos a partir da ultima data, sem gaps > 1 dia)
+5. Retorna resultado paginado
+
+### Arquivos
+
+- `backend/src/modules/challenges/challenge-progress.service.ts` — metodo `getDetailedHistory`
+- `backend/src/modules/challenges/challenges.controller.ts` — rota `GET /challenges/history/detailed`
+
+---
+
+## Feature: E2E Playwright Tests
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-05
+> **Status:** Concluida
+
+### Resumo
+Testes end-to-end com Playwright cobrindo o happy path completo: registro, onboarding, swipe, match e chat.
+
+### Fluxo Testado
+
+1. Navegar para `http://localhost:5173`
+2. Registrar primeiro usuario (email unico)
+3. Completar onboarding (todos os passos)
+4. Logout
+5. Registrar segundo usuario
+6. Completar onboarding do segundo usuario
+7. Ir para tela de match do segundo usuario
+8. Swipe right no primeiro usuario
+9. Logout
+10. Login como primeiro usuario
+11. Ir para tela de match
+12. Swipe right no segundo usuario (cria match)
+13. Verificar match aparece na lista de mensagens
+14. Abrir chat e enviar mensagem
+15. Verificar mensagem aparece no chat
+
+### Arquivos
+
+- `e2e/package.json` — dependencias e scripts
+- `e2e/playwright.config.ts` — configuracao com webServer (backend + mobile)
+- `e2e/tests/wellmatch.spec.ts` — teste do happy path
+
+### Como Rodar
+
+```bash
+cd e2e
+npm install
+npm test              # headless
+npm run test:headed   # com navegador visivel
+```
+
+---
+
+## Feature: i18n Padronizado
+
+> **Versao:** 1.0.0
+> **Implementada em:** 2026-07-05
+> **Status:** Concluida
+
+### Resumo
+Padronizacao de mensagens de erro, sucesso e labels de UI em portugues entre backend e frontend mobile.
+
+### Constantes Criadas
+
+#### Backend — Mensagens de Erro e Sucesso
+
+`backend/src/common/constants/error-messages.ts`:
+- `ERRORS` — objeto com mensagens de erro em portugues para todos os modulos (auth, matching, moderation, onboarding, health, chat)
+- `SUCCESS` — objeto com mensagens de sucesso (avatar, report, block, unblock, account, consent, onboarding, match, chat)
+
+#### Mobile — Labels de Erro
+
+`mobile/src/constants/errors.ts`:
+- `ERROR_LABELS` — Record com mapeamento de codigos de erro para mensagens em portugues
+- `getErrorMessage(error)` — funcao helper que extrai mensagem de erro de qualquer formato (string, objeto com message, objeto com code)
+
+#### Mobile — Labels de UI
+
+`mobile/src/constants/labels.ts`:
+- `LABELS` — objeto completo com todas as labels de UI em portugues, organizado por contexto:
+  - `app` — nome e tagline
+  - `common` — loading, error, success, confirm, cancel, retry, back, save, delete, send
+  - `auth` — login, register, email, password, name, logout
+  - `onboarding` — titulos dos passos, botoes de navegacao
+  - `match` — labels da tela de match
+  - `messages` — labels do chat
+  - `profile` — labels do perfil
+  - `challenges` — labels de desafios
+  - `health` — labels do dashboard de saude
+  - `privacy` — labels de privacidade
+  - `errors` — mensagens de erro genericas
+
+### Arquivos
+
+- `backend/src/common/constants/error-messages.ts`
+- `mobile/src/constants/errors.ts`
+- `mobile/src/constants/labels.ts`
