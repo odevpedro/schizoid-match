@@ -1,11 +1,15 @@
-import { Controller, Get, Patch, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Patch, Post, Body, Param, UseGuards, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { extname } from 'path';
 import { UsersService } from './users.service';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
-import { AvatarDto } from './dto/avatar.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+const multer = require('multer');
+const diskStorage = require('multer/storage/disk');
 import { OnboardingService } from './onboarding.service';
 import { PublicWellnessProfile } from '../matching/entities/public-wellness-profile.entity';
 import {
@@ -100,10 +104,32 @@ export class UsersController {
   }
 
   @Post('me/avatar')
-  @ApiOperation({ summary: 'Update current user avatar' })
-  async updateAvatar(@Request() req, @Body() dto: AvatarDto) {
-    await this.usersService.updateAvatar(req.user.id, dto.avatarUrl);
-    return { message: 'Avatar updated successfully' };
+  @ApiOperation({ summary: 'Upload avatar image' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: process.cwd() + '/uploads/avatars',
+        filename: (_req: any, file: any, cb: any) => {
+          const ext = extname(file.originalname);
+          cb(null, `avatar-${Date.now()}${ext}`);
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req: any, file: any, cb: any) => {
+        if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
+          cb(new BadRequestException('Only image files (jpg, png, gif, webp) are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('File is required');
+    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    await this.usersService.updateAvatar(req.user.id, avatarUrl);
+    return { avatarUrl, message: 'Avatar updated successfully' };
   }
 
   @Get('onboarding/status')

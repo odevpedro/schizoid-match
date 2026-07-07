@@ -13,6 +13,8 @@ import { ChallengesModule } from './modules/challenges/challenges.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { NotificationModule } from './modules/notifications/notification.module';
 import { HealthCheckController } from './modules/health/health-check.controller';
 import databaseConfig from './config/database.config';
 
@@ -36,6 +38,8 @@ import databaseConfig from './config/database.config';
     PrivacyModule,
     ModerationModule,
     AuditModule,
+    AdminModule,
+    NotificationModule,
   ],
   controllers: [HealthCheckController],
 })
