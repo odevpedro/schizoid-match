@@ -2,7 +2,7 @@
   "extends": "@react-native/typescript-config/tsconfig.json",
   "compilerOptions": {
     "strict": true,
-    "types": ["react-native"],
+    "types": ["react-native", "jest"],
     "lib": ["dom", "dom.iterable", "es2022"],
     "baseUrl": ".",
     "paths": {
@@ -14,5 +14,6 @@
       "@hooks/*": ["src/hooks/*"],
       "@types/*": ["src/types/*"]
     }
-  }
+  },
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/__mocks__/**"]
 }
