@@ -8,11 +8,16 @@ import { MatchScreen } from '../screens/match/MatchScreen';
 import { ChallengesScreen } from '../screens/challenges/ChallengesScreen';
 import { MessagesScreen } from '../screens/chat/MessagesScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
+import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 import { PrivacyScreen } from '../screens/privacy/PrivacyScreen';
 import { WatchConnectionScreen } from '../screens/onboarding/WatchConnectionScreen';
 import { HealthDashboardScreen } from '../screens/health/HealthDashboardScreen';
 import { ReportUserScreen } from '../screens/moderation/ReportUserScreen';
 import { BlockedUsersScreen } from '../screens/moderation/BlockedUsersScreen';
+import { AdminDashboardScreen } from '../screens/admin/AdminDashboardScreen';
+import { AdminReportsScreen } from '../screens/admin/AdminReportsScreen';
+import { AdminReportDetailScreen } from '../screens/admin/AdminReportDetailScreen';
+import { AdminAuditScreen } from '../screens/admin/AdminAuditScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -28,6 +33,7 @@ const MessagesStack = () => (
   <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.text }}>
     <Stack.Screen name="MessagesList" component={MessagesScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Chat" component={ChatScreen} options={{ title: 'Chat' }} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
   </Stack.Navigator>
 );
 
@@ -39,6 +45,10 @@ const ProfileStack = () => (
     <Stack.Screen name="HealthDashboard" component={HealthDashboardScreen} options={{ title: 'Meus Dados' }} />
     <Stack.Screen name="ReportUser" component={ReportUserScreen} options={{ title: 'Denunciar' }} />
     <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} options={{ title: 'Bloqueados' }} />
+    <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Painel de Moderação' }} />
+    <Stack.Screen name="AdminReports" component={AdminReportsScreen} options={{ title: 'Denúncias' }} />
+    <Stack.Screen name="AdminReportDetail" component={AdminReportDetailScreen} options={{ title: 'Detalhes' }} />
+    <Stack.Screen name="AdminAudit" component={AdminAuditScreen} options={{ title: 'Auditoria' }} />
   </Stack.Navigator>
 );
 
